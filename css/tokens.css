@@ -1,0 +1,154 @@
+/* ============================================================
+   探险家的罗盘 · 设计令牌
+   来源：PRD V3.1 第5章 交互与视觉规范（5.4 / 5.5）
+   ============================================================ */
+:root {
+  /* ---- 主色调：暖色纸张系 ---- */
+  --bg:            #FBF3E7;   /* 页面整体背景 */
+  --surface:       #FFF9F1;   /* 卡片、弹窗、浮层 */
+  --surface-float: #FFFBF5;   /* 顶栏、底Tab栏 */
+  --input-bg:      #FFFFFF;   /* 输入框 */
+
+  /* ---- 文字色阶：棕色系 ---- */
+  --text:          #31251B;   /* 主文字 */
+  --text-2:        #8B7662;   /* 次文字 */
+  --text-3:        #B5A697;   /* 提示 / placeholder / 禁用 */
+  --divider:       #E8D9C7;   /* 分割线 */
+  --border:        #D9C7B2;   /* 描边 */
+
+  /* ---- 功能色（语义色）---- */
+  --brand:         #C96F3D;   /* 主品牌 / 强调 */
+  --brand-light:   #F3DFCF;   /* 品牌色浅 */
+  --brand-deep:    #B85F2F;
+  --success:       #7E9F7A;
+  --success-light: #E5EFE3;
+  --warn:          #D4A84B;
+  --warn-light:    #F7ECCB;
+  --danger:        #C95C5C;
+  --danger-light:  #F3DCDC;
+  --info:          #5C7D9F;
+
+  /* ---- 情绪色：幸福密度日历 ---- */
+  --m5: #B8441F;  /* 5分 深红 */
+  --m4: #D07850;  /* 4分 中红 */
+  --m3: #E8B08F;  /* 3分 浅红 */
+  --m2: #E8D5C4;  /* 2分 极浅红 */
+  --m1: #D9D0C7;  /* 1分 灰 */
+  --m0: #F0E6DA;  /* 未记录 */
+
+  /* ---- 渐变 ---- */
+  --grad-brand: linear-gradient(180deg, #D47A45 0%, #C96F3D 100%);
+  --grad-page:  linear-gradient(180deg, #FFFDF9 0%, #FBF3E7 100%);
+
+  /* ---- 字体 ---- */
+  --font-serif: "Noto Serif SC", "SimSun", Georgia, "Times New Roman", serif;
+  --font-sans:  "PingFang SC", "Noto Sans SC", "Microsoft YaHei", -apple-system,
+                BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono:  "SF Mono", "JetBrains Mono", Consolas, monospace;
+
+  /* ---- 字号（移动端基准）---- */
+  --fs-display: 28px; --lh-display: 36px;
+  --fs-h1: 22px;      --lh-h1: 30px;
+  --fs-h2: 18px;      --lh-h2: 26px;
+  --fs-h3: 16px;      --lh-h3: 22px;
+  --fs-body: 15px;    --lh-body: 22px;
+  --fs-body2: 14px;   --lh-body2: 20px;
+  --fs-cap: 12px;     --lh-cap: 16px;
+  --fs-sm: 11px;      --lh-sm: 14px;
+
+  /* ---- 间距（4px 最小单位 / 8px 网格）---- */
+  --xs: 4px; --sm: 8px; --md: 12px; --base: 16px;
+  --lg: 24px; --xl: 32px; --xxl: 48px;
+
+  /* ---- 圆角 ---- */
+  --r-card: 16px;  --r-card-s: 12px; --r-btn: 24px;
+  --r-btn-s: 10px; --r-input: 10px;  --r-avatar: 8px; --r-tag: 6px;
+
+  /* ---- 阴影（棕色系，禁止纯黑/灰）---- */
+  --sh-1: 0 2px 8px rgba(49, 37, 27, .06);
+  --sh-2: 0 4px 16px rgba(49, 37, 27, .08);
+  --sh-3: 0 8px 24px rgba(49, 37, 27, .12);
+
+  /* ---- 动效 ---- */
+  --t-micro: 150ms ease-out;
+  --t-base:  250ms cubic-bezier(.4, 0, .2, 1);
+  --t-emph:  350ms cubic-bezier(.34, 1.56, .64, 1);
+  --t-enter: 400ms ease-out;
+
+  /* ---- 布局常量 ---- */
+  --topbar-h: 56px;
+  --tabbar-h: 64px;
+  --sidebar-w: 280px;
+  --main-max: 900px;
+}
+
+/* ============================================================
+   深色模式（PRD 6.3）
+   不是简单反相，而是「夜间暖纸」：深棕底 + 暖米字，保住纸感温度
+   ============================================================ */
+[data-theme="dark"] {
+  --bg:            #1E1712;
+  --surface:       #2A211A;
+  --surface-float: #32271E;
+  --input-bg:      #372C22;
+
+  --text:          #F2E7DA;
+  --text-2:        #BCA791;
+  --text-3:        #8A7660;
+  --divider:       #42342A;
+  --border:        #54432F;
+
+  --brand:         #E2915C;
+  --brand-light:   #4A3527;
+  --brand-deep:    #EFA173;
+  --success:       #8FB189;
+  --success-light: #2E3B2C;
+  --warn:          #DDB45E;
+  --warn-light:    #40341E;
+  --danger:        #DF7575;
+  --danger-light:  #402626;
+  --info:          #87A6C4;
+
+  --m5: #D4603A;
+  --m4: #C07050;
+  --m3: #96604A;
+  --m2: #6B4A3A;
+  --m1: #4E3B30;
+  --m0: #33281F;
+
+  --grad-brand: linear-gradient(180deg, #E79B66 0%, #D98550 100%);
+  --grad-page:  linear-gradient(180deg, #241C16 0%, #1E1712 100%);
+
+  --sh-1: 0 2px 8px rgba(0, 0, 0, .30);
+  --sh-2: 0 4px 16px rgba(0, 0, 0, .38);
+  --sh-3: 0 8px 24px rgba(0, 0, 0, .48);
+}
+
+[data-theme="dark"] .toast { background: rgba(60, 47, 37, .97); color: #F2E7DA; }
+[data-theme="dark"] .cam__bar { background: rgba(14, 11, 8, .96); }
+[data-theme="dark"] .bond-card { background: linear-gradient(140deg, #2A211A, #4A3527); }
+[data-theme="dark"] .streak-card { background: linear-gradient(135deg, #40341E, #4A3527); border-color: var(--border); }
+[data-theme="dark"] .today-banner { background: linear-gradient(120deg, #40341E, #4A3527); border-color: var(--border); }
+[data-theme="dark"] .compass-hero { background: radial-gradient(80% 100% at 50% 0%, #3A2C21 0%, #1E1712 70%); }
+[data-theme="dark"] .quick { background: var(--surface); }
+[data-theme="dark"] img { filter: brightness(.92); }
+[data-theme="dark"] ::selection { background: #6B4A3A; color: #F2E7DA; }
+
+@media (min-width: 1024px) {
+  :root {
+    --fs-display: 32px; --lh-display: 42px;
+    --fs-h1: 24px;      --lh-h1: 34px;
+    --fs-h2: 19px;      --lh-h2: 28px;
+    --fs-h3: 17px;      --lh-h3: 24px;
+    --fs-body: 16px;    --lh-body: 24px;
+    --fs-body2: 15px;   --lh-body2: 22px;
+    --fs-cap: 13px;     --lh-cap: 18px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    transition-duration: .01ms !important;
+  }
+}

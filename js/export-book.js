@@ -1,0 +1,263 @@
+/* ============================================================
+   探险家的罗盘 · 叙事式导出（故事书）
+   把数据导出成「一本能翻、能打印」的 HTML 回忆录：
+   自包含（CSS + 照片都内嵌），双击即看，浏览器打印即可存 PDF。
+   与 JSON 导出的分工：JSON 是备份/迁移用，故事书是给人读的。
+   ============================================================ */
+window.BookExport = (function () {
+
+  var MAP = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+  function esc(s) {
+    return String(s === null || s === undefined ? '' : s)
+      .replace(/[&<>"']/g, function (c) { return MAP[c]; });
+  }
+  function cnDate(iso) {
+    var d = new Date(iso);
+    if (isNaN(d.getTime())) return '';
+    return d.getFullYear() + '年' + (d.getMonth() + 1) + '月' + d.getDate() + '日';
+  }
+  function nameOf(uid) {
+    var u = Store.userById(uid);
+    return u ? u.nickname : '';
+  }
+
+  /* ---------- 筛数据 ---------- */
+  function collect(opts) {
+    var list = Store.journeys().slice();
+    if (opts.range === 'year') {
+      var y = new Date().getFullYear();
+      list = list.filter(function (j) { return new Date(j.start_date).getFullYear() === y; });
+    } else if (opts.range === 'archived') {
+      list = list.filter(function (j) { return j.status === 'archived' || j.status === 'sealed'; });
+    }
+    // 故事书按时间正序：从最早走到最近
+    return list.sort(function (a, b) { return new Date(a.start_date) - new Date(b.start_date); });
+  }
+
+  function photosOf(j, withPhotos) {
+    if (!withPhotos) return [];
+    var out = [], seen = {};
+    function add(u) {
+      if (typeof u !== 'string' || u.indexOf('data:') !== 0) return;
+      if (seen[u]) return;
+      seen[u] = 1; out.push(u);
+    }
+    add(j.cover_image);
+    [j.a_side, j.b_side].forEach(function (s) {
+      (s && s.images ? s.images : []).forEach(add);
+    });
+    return out.slice(0, 9);
+  }
+
+  function roleOf(j, uid) {
+    if (!j.roles) return '';
+    if (j.roles.hunter === uid) return '猎人';
+    if (j.roles.poet === uid) return '诗人';
+    return '';
+  }
+  function scoreOf(j) {
+    var v = [];
+    if (j.a_side && j.a_side.score) v.push(j.a_side.score);
+    if (j.b_side && j.b_side.score) v.push(j.b_side.score);
+    if (!v.length) return null;
+    return (v.reduce(function (a, b) { return a + b; }, 0) / v.length).toFixed(1);
+  }
+
+  /* ---------- 单条旅程 ---------- */
+  function journeyHTML(j, withPhotos) {
+    var photos = photosOf(j, withPhotos);
+    var sc = scoreOf(j);
+    var status = j.status === 'archived' || j.status === 'sealed' ? ''
+      : '<span class="chip chip--todo">' + (j.status === 'draft' ? '草稿' : '待对方提交') + '</span>';
+
+    var h = '<article class="j' + (j.is_important ? ' is-important' : '') + '">';
+    h += '<div class="j__head"><div class="j__date">' + esc(cnDate(j.start_date)) + '</div>';
+    h += '<h3 class="j__title">' + esc(j.title || '未命名的一次出门') +
+      (j.is_important ? ' <span class="star">★</span>' : '') + '</h3>';
+    h += '<div class="j__meta">' +
+      '<span>' + esc((DATA.categoryEmoji && DATA.categoryEmoji[j.category]) || '') + ' ' + esc(j.category || '') + '</span>' +
+      (j.location_name ? '<span>📍 ' + esc(j.location_name) + '</span>' : '') +
+      (sc ? '<span>★ ' + esc(sc) + '</span>' : '') +
+      status + '</div></div>';
+
+    if (photos.length) {
+      h += '<div class="j__photos photos--' + (photos.length === 1 ? '1' : photos.length <= 4 ? '2' : '3') + '">' +
+        photos.map(function (p) { return '<img src="' + p + '" alt="">'; }).join('') + '</div>';
+    }
+
+    var sides = [j.a_side, j.b_side].filter(Boolean);
+    if (sides.length) {
+      h += '<div class="j__sides">' + sides.map(function (s) {
+        var who = nameOf(s.user_id) || 'TA';
+        var role = roleOf(j, s.user_id);
+        var body = [];
+        if (s.text) body.push('<p>' + esc(s.text).replace(/\n/g, '<br>') + '</p>');
+        if (s.senses) {
+          var sn = [];
+          if (s.senses.smell) sn.push('闻起来 ' + esc(s.senses.smell));
+          if (s.senses.sound) sn.push('听起来 ' + esc(s.senses.sound));
+          if (s.senses.temp) sn.push('摸起来 ' + esc(s.senses.temp));
+          if (sn.length) body.push('<p class="senses">' + sn.join(' · ') + '</p>');
+        }
+        return '<div class="side"><div class="side__who">' + esc(who) +
+          (role ? '<span class="chip">' + esc(role) + '</span>' : '') +
+          (s.score ? '<span class="chip">★ ' + esc(s.score) + '</span>' : '') + '</div>' +
+          (body.length ? body.join('') : '<p class="muted">（这一侧还没写）</p>') + '</div>';
+      }).join('') + '</div>';
+    }
+
+    var tags = DATA.tagNames ? DATA.tagNames((j.consensus && j.consensus.tags) || []) : [];
+    if (tags.length) {
+      h += '<div class="j__tags">' + tags.map(function (t) { return '<span class="tag"># ' + esc(t) + '</span>'; }).join('') + '</div>';
+    }
+    (j.notes || []).forEach(function (n) {
+      if (!n || !n.content) return;
+      h += '<div class="j__note"><b>备注' + (nameOf(n.author_id) ? '（' + esc(nameOf(n.author_id)) + '）' : '') +
+        '：</b>' + esc(n.content).replace(/\n/g, '<br>') + '</div>';
+    });
+    (j.annotations || []).forEach(function (a) {
+      if (!a || !a.text) return;
+      h += '<div class="j__anno"><b>' + esc(cnDate(a.created_at)) + ' 追忆' +
+        (nameOf(a.author_id) ? ' · ' + esc(nameOf(a.author_id)) : '') + '：</b>' +
+        esc(a.text).replace(/\n/g, '<br>') + '</div>';
+    });
+
+    h += '</article>';
+    return h;
+  }
+
+  /* ---------- 整本 ---------- */
+  function build(opts) {
+    opts = opts || {};
+    var withPhotos = opts.photos !== false;
+    var list = collect(opts);
+    var c = Store.state.couple;
+    var me = Store.me(), pa = Store.partner();
+    var title = (me && pa) ? (me.nickname + ' & ' + pa.nickname) : '我们的';
+    var photoCount = 0, catCount = {};
+    list.forEach(function (j) {
+      photoCount += photosOf(j, withPhotos).length;
+      catCount[j.category || '其他'] = (catCount[j.category || '其他'] || 0) + 1;
+    });
+    var years = [];
+    list.forEach(function (j) {
+      var y = new Date(j.start_date).getFullYear();
+      if (years.indexOf(y) < 0) years.push(y);
+    });
+    years.sort();
+    var rangeText = opts.range === 'year' ? (new Date().getFullYear() + ' 年')
+      : opts.range === 'archived' ? '已完成的部分' : '全部记录';
+
+    var h = '<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8">' +
+      '<meta name="viewport" content="width=device-width,initial-scale=1">' +
+      '<title>探险家的罗盘 · ' + esc(title) + '的故事书</title><style>' + css() + '</style></head><body>';
+
+    /* 封面 */
+    h += '<header class="cover">' +
+      '<div class="cover__mark">🧭</div>' +
+      '<h1>探险家的罗盘</h1>' +
+      '<div class="cover__sub">' + esc(title) + ' · 的故事书</div>' +
+      '<div class="cover__meta">' + esc(rangeText) + ' · 共 ' + list.length + ' 段记忆' +
+      (withPhotos ? ' · ' + photoCount + ' 张照片' : '') + '</div>' +
+      '<div class="cover__date">生成于 ' + esc(cnDate(new Date().toISOString())) + '</div>' +
+      '<div class="cover__tip no-print">点右上角「打印」→ 另存为 PDF，就是一本能翻的册子</div>' +
+      '</header>';
+
+    /* 目录 */
+    if (years.length > 1) {
+      h += '<nav class="toc no-break"><h2>目录</h2><ul>' +
+        years.map(function (y) {
+          var n = list.filter(function (j) { return new Date(j.start_date).getFullYear() === y; }).length;
+          return '<li><a href="#y' + y + '">' + y + ' 年<span>' + n + ' 段</span></a></li>';
+        }).join('') + '</ul></nav>';
+    }
+
+    /* 正文：按年分组 */
+    years.forEach(function (y) {
+      var ys = list.filter(function (j) { return new Date(j.start_date).getFullYear() === y; });
+      h += '<section class="year"><h2 id="y' + y + '">' + y + ' 年</h2>';
+      ys.forEach(function (j) { h += journeyHTML(j, withPhotos); });
+      h += '</section>';
+    });
+
+    if (!list.length) {
+      h += '<section class="empty"><p>这个范围里还没有记录。换个范围试试？</p></section>';
+    }
+
+    /* 尾声统计 */
+    var cats = Object.keys(catCount).sort(function (a, b) { return catCount[b] - catCount[a]; });
+    h += '<section class="stats no-break"><h2>这一年去了哪些地方</h2><div class="bars">' +
+      cats.map(function (k) {
+        var pct = Math.round(catCount[k] / list.length * 100);
+        return '<div class="bar"><span class="bar__k">' + esc((DATA.categoryEmoji && DATA.categoryEmoji[k]) || '') + ' ' + esc(k) + '</span>' +
+          '<span class="bar__t"><i style="width:' + pct + '%"></i></span>' +
+          '<span class="bar__v">' + catCount[k] + '</span></div>';
+      }).join('') + '</div>' +
+      '<p class="muted">共 ' + list.length + ' 段记忆' + (withPhotos ? '、' + photoCount + ' 张照片' : '') +
+      '。数据只存在你们自己的设备里，这一页是给回忆用的。</p></section>';
+
+    h += '</body></html>';
+    return h;
+  }
+
+  function download(opts) {
+    var finish = function () {
+      var html = build(opts);
+      var blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = '探险家的罗盘_故事书_' + Store.fmtYMD(new Date().toISOString()) + '.html';
+      a.click();
+      setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
+      UI.toast('故事书已导出，双击就能看', 'ok');
+    };
+    if (Store.restoreImages) Store.restoreImages().then(finish, finish);
+    else finish();
+  }
+
+  /* ---------- 打印友好的样式 ---------- */
+  function css() {
+    return '*{box-sizing:border-box}' +
+      'body{margin:0;background:#FBF3E7;color:#31251B;font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;line-height:1.75}' +
+      '.cover{min-height:88vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:40px 24px;background:#F3DFCF}' +
+      '.cover__mark{font-size:56px}.cover h1{margin:16px 0 8px;font-size:32px;letter-spacing:2px}' +
+      '.cover__sub{font-size:18px;color:#7A6656}.cover__meta{margin-top:14px;font-size:14px;color:#7A6656}' +
+      '.cover__date{margin-top:6px;font-size:12px;color:#9A8878}.cover__tip{margin-top:24px;font-size:12px;color:#9A8878}' +
+      'main,.toc,.year,.stats{max-width:760px;margin:0 auto;padding:0 20px}' +
+      '.toc{padding-top:36px}.toc h2,.year h2,.stats h2{font-size:20px;border-bottom:1px solid #E0D2C2;padding-bottom:8px;margin:32px 0 16px}' +
+      '.toc ul{list-style:none;padding:0;display:flex;flex-wrap:wrap;gap:10px}' +
+      '.toc a{display:block;padding:8px 14px;border:1px solid #E0D2C2;border-radius:20px;text-decoration:none;color:#31251B;font-size:14px}' +
+      '.toc a span{color:#9A8878;margin-left:6px;font-size:12px}' +
+      '.j{background:#fff;border-radius:14px;padding:18px 20px;margin:0 0 18px;box-shadow:0 1px 3px rgba(60,45,30,.08)}' +
+      '.j.is-important{border-left:4px solid #D9822B}' +
+      '.j__date{font-size:12px;color:#9A8878;letter-spacing:1px}' +
+      '.j__title{margin:4px 0 8px;font-size:19px}.star{color:#D9822B}' +
+      '.j__meta{display:flex;flex-wrap:wrap;gap:12px;font-size:13px;color:#7A6656}' +
+      '.chip{display:inline-block;margin-left:6px;padding:1px 8px;border:1px solid #E0D2C2;border-radius:10px;font-size:11px;color:#7A6656}' +
+      '.chip--todo{background:#FFF3DC;border-color:#E2A64B;color:#8A5A1A}' +
+      '.j__photos{display:grid;gap:6px;margin:14px 0}' +
+      '.photos--1{grid-template-columns:1fr}.photos--2{grid-template-columns:repeat(2,1fr)}.photos--3{grid-template-columns:repeat(3,1fr)}' +
+      '.j__photos img{width:100%;height:200px;object-fit:cover;border-radius:10px;display:block}' +
+      '.photos--1 img{height:320px}' +
+      '.j__sides{display:flex;gap:16px;flex-wrap:wrap;margin-top:12px}' +
+      '.side{flex:1 1 280px;background:#FBF6EE;border-radius:10px;padding:12px 14px}' +
+      '.side__who{font-size:13px;font-weight:600;margin-bottom:6px}' +
+      '.side p{margin:6px 0;font-size:14px;white-space:normal}' +
+      '.senses{color:#7A6656;font-size:13px}' +
+      '.muted{color:#9A8878}.j__tags{margin-top:12px;display:flex;flex-wrap:wrap;gap:6px}' +
+      '.tag{background:#F3DFCF;border-radius:10px;padding:2px 10px;font-size:12px;color:#7A6656}' +
+      '.j__note,.j__anno{margin-top:10px;font-size:13px;color:#5A4636;background:#FFF9F1;border-left:3px solid #E8D3B8;padding:8px 12px;border-radius:6px}' +
+      '.bars{margin:8px 0 16px}.bar{display:flex;align-items:center;gap:10px;margin:8px 0;font-size:13px}' +
+      '.bar__k{width:88px;color:#7A6656}.bar__t{flex:1;height:8px;background:#EFE3D4;border-radius:4px;overflow:hidden}' +
+      '.bar__t i{display:block;height:100%;background:#D9822B}.bar__v{width:28px;text-align:right;color:#7A6656}' +
+      '.empty{text-align:center;padding:60px 20px;color:#9A8878}' +
+      '@media print{body{background:#fff}.no-print{display:none}' +
+      '@page{size:A4;margin:14mm}' +
+      '.cover{page-break-after:always;min-height:auto;padding:80px 0}' +
+      '.j,.no-break{page-break-inside:avoid}' +
+      '.year h2{page-break-after:avoid}' +
+      '.j__photos img{height:150px}.photos--1 img{height:220px}}';
+  }
+
+  return { build: build, download: download, collect: collect, photosOf: photosOf };
+})();

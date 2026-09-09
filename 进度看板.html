@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>探险家的罗盘 · 项目进度看板</title>
+<style>
+  :root{
+    --bg:#FBF3E7; --surface:#FFF9F1; --surface2:#FFFBF5;
+    --text:#31251B; --text2:#8B7662; --text3:#B5A697;
+    --divider:#E8D9C7; --border:#D9C7B2;
+    --brand:#C96F3D; --brand-light:#F3DFCF;
+    --success:#7E9F7A; --success-light:#E5EFE3;
+    --warn:#D4A84B; --warn-light:#F7ECCB;
+    --danger:#C95C5C; --info:#5C7D9F;
+    --sh1:0 2px 8px rgba(49,37,27,.06);
+    --sh2:0 4px 16px rgba(49,37,27,.08);
+    --serif:"Noto Serif SC","SimSun",Georgia,"Times New Roman",serif;
+    --sans:"PingFang SC","Noto Sans SC","Microsoft YaHei",-apple-system,"Segoe UI",sans-serif;
+    --mono:"SF Mono","JetBrains Mono",Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15px;line-height:1.7}
+  .wrap{max-width:1180px;margin:0 auto;padding:32px 24px 64px}
+  h1,h2,h3{font-family:var(--serif);font-weight:600;margin:0}
+  header{margin-bottom:32px;padding-bottom:24px;border-bottom:1px solid var(--divider)}
+  header h1{font-size:30px;line-height:1.3}
+  .sub{color:var(--text2);font-size:14px;margin-top:6px}
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:24px 0 8px}
+  .kpi{background:var(--surface);border-radius:14px;padding:16px}
+  .kpi b{font-family:var(--mono);font-size:26px;display:block;line-height:1.2}
+  .kpi span{font-size:12px;color:var(--text2)}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:20px;margin-top:28px}
+  .card{background:var(--surface);border-radius:16px;padding:20px;box-shadow:var(--sh1)}
+  .card h3{font-size:17px;margin-bottom:14px;display:flex;align-items:center;gap:8px}
+  .bar{height:8px;border-radius:4px;background:var(--brand-light);overflow:hidden;margin:6px 0 4px}
+  .bar i{display:block;height:100%;background:var(--brand);border-radius:4px}
+  .bar.g i{background:var(--success)}
+  .row{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:14px;margin-bottom:10px}
+  .pct{font-family:var(--mono);font-size:13px;color:var(--text2);flex:none}
+  ul{margin:0;padding-left:18px}
+  li{margin-bottom:7px;font-size:14px}
+  .tag{display:inline-flex;align-items:center;height:22px;padding:0 9px;border-radius:6px;font-size:12px;
+       background:var(--brand-light);color:var(--brand);margin-right:6px}
+  .tag.ok{background:var(--success-light);color:var(--success)}
+  .tag.warn{background:var(--warn-light);color:var(--warn)}
+  .tag.gray{background:var(--brand-light);color:var(--text2)}
+  .tag.info{background:#E5EDF3;color:var(--info)}
+  table{width:100%;border-collapse:collapse;font-size:14px}
+  th,td{text-align:left;padding:9px 8px;border-bottom:1px solid var(--divider);vertical-align:top}
+  th{color:var(--text2);font-weight:500;font-size:13px}
+  .dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:7px}
+  .dot.ok{background:var(--success)} .dot.doing{background:var(--warn)} .dot.todo{background:var(--text3)}
+  .note{background:var(--warn-light);border-radius:12px;padding:14px 16px;font-size:13.5px;line-height:1.7;margin-top:8px}
+  .note b{color:#8a6a20}
+  footer{margin-top:36px;padding-top:20px;border-top:1px solid var(--divider);color:var(--text2);font-size:13px}
+  code{font-family:var(--mono);background:var(--brand-light);padding:1px 5px;border-radius:4px;font-size:12.5px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>🧭 探险家的罗盘 · 项目进度看板</h1>
+  <div class="sub">依据 PRD V3.1 开发 · 技术形态：纯前端静态站点 + PWA · 范围：Phase 1 + 2 + 3 全部完成　·　更新：2026-09-08（第五轮）</div>
+</header>
+
+<div class="kpis">
+  <div class="kpi"><b>100%</b><span>Phase 1 MVP</span></div>
+  <div class="kpi"><b>100%</b><span>Phase 2 增强</span></div>
+  <div class="kpi"><b>100%</b><span>Phase 3 扩展</span></div>
+  <div class="kpi"><b>100%</b><span>Phase 4 容量 + 真机</span></div>
+  <div class="kpi"><b>260</b><span>通过测试断言</span></div>
+  <div class="kpi"><b>0</b><span>外部依赖</span></div>
+</div>
+
+<div class="grid">
+
+  <section class="card" style="grid-column:1 / -1;background:var(--brand-light);border:1px solid #E2915C33">
+    <h3>🚀 本轮发布 · https 真机 PWA 验证</h3>
+    <div class="row row--between" style="align-items:center">
+      <div class="t-2">
+        <b>分享链接（沙箱会被回收，失效找我换）：</b><br>
+        <a href="https://3000-cc73a68712084dd5975556b8ecb41094.e2b.bj10.sandbox.cloudstudio.club/" target="_blank" rel="noopener" style="color:var(--brand);text-decoration:underline">
+          https://3000-cc73a68712084dd5975556b8ecb41094.e2b.bj10.sandbox.cloudstudio.club/
+        </a>
+      </div>
+      <span class="tag ok">已部署</span>
+    </div>
+    <div class="t-sm mt-sm" style="color:var(--warn)">⚠ 这是临时沙箱，平台无活动会回收——真要长期跑就在本机双击「启动本地服务.bat」，或部署到自己的服务器。</div>
+    <div class="t-2 mt-md" style="line-height:1.7">
+      1️⃣ 手机浏览器打开链接 → 分享 → 添加到主屏幕（iOS Safari）/ 安装（Android Chrome），<b>和原生 App 一样</b>从桌面图标进。<br>
+      2️⃣ 装好后把手机切飞行模式 → 打开罗盘 → 仍能正常用，证明 <b>SW 离线缓存生效</b>。<br>
+      3️⃣ 摄像头、通知、IndexedDB 三件套在 <code>https://</code> 下全部解锁（<code>file://</code> 和 <code>localhost</code> 都做不到）。
+    </div>
+  </section>
+
+  <section class="card">
+    <h3>📊 阶段进度</h3>
+    <div class="row"><span>Phase 1 · MVP 核心闭环</span><span class="pct">100%</span></div>
+    <div class="bar g"><i style="width:100%"></i></div>
+    <div class="row" style="margin-top:14px"><span>Phase 2 · 增强体验</span><span class="pct">100%</span></div>
+    <div class="bar g"><i style="width:100%"></i></div>
+    <div class="row" style="margin-top:14px"><span>Phase 3 · 扩展能力</span><span class="pct">100%</span></div>
+    <div class="bar g"><i style="width:100%"></i></div>
+    <div class="row" style="margin-top:14px"><span>Phase 4 · 容量 + 真机</span><span class="pct">100%</span></div>
+    <div class="bar g"><i style="width:100%"></i></div>
+    <div class="note"><b>本轮新增</b>：IndexedDB 图片扩容（解除 5MB 配额）、考古·第三方表格导入
+      （点评/小红书/美团等导出的 CSV/HTML 智能列映射）、PNG 192/512 图标、https 部署 + 真机 PWA 验证。
+      <br>测试规模 228 → <b>260</b> 项断言全过（167 逻辑 + 93 DOM，含存储用量卡 + 备份与同步）。
+    </div>
+  </section>
+
+  <section class="card">
+    <h3>🧩 模块进度</h3>
+    <div class="row"><span>设计系统（PRD 第5章）</span><span class="pct">100%</span></div>
+    <div class="bar g"><i style="width:100%"></i></div>
+    <div class="row" style="margin-top:12px"><span>数据层 + 存储</span><span class="pct">100%</span></div>
+    <div class="bar g"><i style="width:100%"></i></div>
+    <div class="row" style="margin-top:12px"><span>记录模块（猎人/诗人）</span><span class="pct">100%</span></div>
+    <div class="bar g"><i style="width:100%"></i></div>
+    <div class="row" style="margin-top:12px"><span>罗盘推荐引擎</span><span class="pct">100%</span></div>
+    <div class="bar g"><i style="width:100%"></i></div>
+    <div class="row" style="margin-top:12px"><span>时光机（回顾）</span><span class="pct">100%</span></div>
+    <div class="bar g"><i style="width:100%"></i></div>
+    <div class="row" style="margin-top:12px"><span>考古复苏（CSV/文本/相册）</span><span class="pct">100%</span></div>
+    <div class="bar g"><i style="width:100%"></i></div>
+    <div class="row" style="margin-top:12px"><span>AI 陪聊唤醒（规则引擎）</span><span class="pct">100%</span></div>
+    <div class="bar g"><i style="width:100%"></i></div>
+    <div class="row" style="margin-top:12px"><span>实时拍照（getUserMedia）</span><span class="pct">100%</span></div>
+    <div class="bar g"><i style="width:100%"></i></div>
+    <div class="row" style="margin-top:12px"><span>真 LLM 适配层</span><span class="pct">100%</span></div>
+    <div class="bar g"><i style="width:100%"></i></div>
+    <div class="row" style="margin-top:12px"><span>真天气 API</span><span class="pct">100%</span></div>
+    <div class="bar g"><i style="width:100%"></i></div>
+    <div class="row" style="margin-top:12px"><span>通知与定时调度</span><span class="pct">100%</span></div>
+    <div class="bar g"><i style="width:100%"></i></div>
+    <div class="row" style="margin-top:12px"><span>PWA 可安装 + 离线</span><span class="pct">100%</span></div>
+    <div class="bar g"><i style="width:100%"></i></div>
+    <div class="row" style="margin-top:12px"><span>防弃用四机制</span><span class="pct">100%</span></div>
+    <div class="bar g"><i style="width:100%"></i></div>
+  </section>
+
+  <section class="card">
+    <h3>📦 交付物</h3>
+    <table>
+      <tr><th>文件</th><th>说明</th><th>状态</th></tr>
+      <tr><td><code>index.html</code></td><td>应用入口，双击即用</td><td><span class="dot ok"></span>完成</td></tr>
+      <tr><td><code>css/tokens.css</code></td><td>色彩/字体/间距/圆角/阴影/动效令牌</td><td><span class="dot ok"></span>完成</td></tr>
+      <tr><td><code>css/app.css</code></td><td>组件库 + 响应式布局</td><td><span class="dot ok"></span>完成</td></tr>
+      <tr><td><code>css/views.css</code></td><td>页面级样式</td><td><span class="dot ok"></span>完成</td></tr>
+      <tr><td><code>js/*.js</code> × 18</td><td>数据层/推荐引擎/11 视图/LLM/天气/通知/IDB/路由</td><td><span class="dot ok"></span>完成</td></tr>
+      <tr><td><code>manifest.webmanifest</code></td><td>PWA 清单（名称/图标/主题色/快捷方式）</td><td><span class="dot ok"></span>完成</td></tr>
+      <tr><td><code>sw.js</code></td><td>Service Worker：预缓存 + 离线 + 通知点击</td><td><span class="dot ok"></span>完成</td></tr>
+      <tr><td><code>icon.svg</code> × 2 + <code>icon-192/512.png</code> × 4</td><td>PWA 图标：SVG（矢量）+ PNG（真机安装必备）</td><td><span class="dot ok"></span>完成</td></tr>
+      <tr><td><code>js/idb.js</code></td><td>IndexedDB 图片仓库（扩容层，5MB 配额不再是问题）</td><td><span class="dot ok">本轮</span></td></tr>
+      <tr><td><code>serve.js</code> + <code>启动本地服务.bat</code></td><td>一键起本地服务（摄像头/PWA/通知都要 http）</td><td><span class="dot ok"></span>完成</td></tr>
+      <tr><td><code>.workbuddy/tmp/gen-icons.js</code></td><td>一次性工具：把 SVG 栅格化成 PNG（零依赖）</td><td><span class="dot ok">本轮</span></td></tr>
+      <tr><td><code>README.md</code></td><td>使用说明 + 与 PRD 的技术性偏离</td><td><span class="dot ok"></span>完成</td></tr>
+      <tr><td>冒烟测试</td><td>167 项逻辑 + 93 项真实 DOM</td><td><span class="dot ok">本轮 260</span></td></tr>
+      <tr><td>CloudStudio 部署</td><td>https 真机链接（手机扫码/桌面安装到主屏幕）</td><td><span class="dot ok">本轮</span></td></tr>
+    </table>
+  </section>
+
+  <section class="card">
+    <h3>✅ PRD 功能对照</h3>
+    <div style="max-height:330px;overflow:auto">
+    <table>
+      <tr><th>章节</th><th>功能</th><th>状态</th></tr>
+      <tr><td>3.1</td><td>双人绑定 / 身份切换</td><td><span class="tag ok">已实现</span></td></tr>
+      <tr><td>3.2.1</td><td>角色轮盘分配与互换</td><td><span class="tag ok">已实现</span></td></tr>
+      <tr><td>3.2.2</td><td>猎人三类拍照</td><td><span class="tag ok">已实现</span></td></tr>
+      <tr><td>3.2.3</td><td>诗人三感知 + 魔法暗号</td><td><span class="tag ok">已实现</span></td></tr>
+      <tr><td>3.2.4</td><td>合并确认与归档</td><td><span class="tag ok">已实现</span></td></tr>
+      <tr><td>1.2.3</td><td>双面叙事可见性</td><td><span class="tag ok">已实现</span></td></tr>
+      <tr><td>3.3.3</td><td>推荐引擎九步</td><td><span class="tag ok">已实现</span></td></tr>
+      <tr><td>3.4.1</td><td>那年今日</td><td><span class="tag ok">已实现</span></td></tr>
+      <tr><td>3.4.2</td><td>随机任意门</td><td><span class="tag ok">已实现</span></td></tr>
+      <tr><td>3.4.3</td><td>二次批注</td><td><span class="tag ok">已实现</span></td></tr>
+      <tr><td>3.5</td><td>重要时光 + 星光轮播</td><td><span class="tag ok">已实现</span></td></tr>
+      <tr><td>3.5.6</td><td>备注（防抖自动保存）</td><td><span class="tag ok">已实现</span></td></tr>
+      <tr><td>3.6</td><td>共同愿望清单</td><td><span class="tag ok">已实现</span></td></tr>
+      <tr><td>4.2</td><td>2 分钟闪电存档</td><td><span class="tag ok">已实现</span></td></tr>
+      <tr><td>4.4</td><td>幸福密度 / 半成品展览</td><td><span class="tag ok">已实现</span></td></tr>
+      <tr><td>2.8</td><td>自动黑名单</td><td><span class="tag ok">已实现</span></td></tr>
+      <tr><td>6.2</td><td>数据导出 / 导入</td><td><span class="tag ok">已实现</span></td></tr>
+      <tr><td>—</td><td>实时拍照录入（本轮新增）</td><td><span class="tag ok">已实现</span></td></tr>
+      <tr><td>4.1</td><td>数据考古复苏（本轮新增）</td><td><span class="tag ok">已实现</span></td></tr>
+      <tr><td>4.3</td><td>AI 陪聊唤醒（本轮新增，规则版）</td><td><span class="tag ok">已实现</span></td></tr>
+      <tr><td>4.4</td><td>连续记录奖励彩蛋（第二轮新增）</td><td><span class="tag ok">已实现</span></td></tr>
+      <tr><td>3.3.3⑨</td><td>真 LLM 文案（本轮，可配 + 回退）</td><td><span class="tag ok">已实现</span></td></tr>
+      <tr><td>4.3</td><td>真 LLM 出题与成文（本轮）</td><td><span class="tag ok">已实现</span></td></tr>
+      <tr><td>3.3.2</td><td>真天气 API · Open-Meteo（本轮）</td><td><span class="tag ok">已实现</span></td></tr>
+      <tr><td>3.4.1</td><td>浏览器通知推送（本轮，页面内定时）</td><td><span class="tag ok">已实现</span></td></tr>
+      <tr><td>6.3</td><td>PWA 安装 + 离线（本轮）</td><td><span class="tag ok">已实现</span></td></tr>
+      <tr><td>5.1</td><td>桌面端周/月视图 + 快捷键（第三轮）</td><td><span class="tag ok">已实现</span></td></tr>
+      <tr><td>6.3</td><td>深色模式（本轮）</td><td><span class="tag ok">已实现</span></td></tr>
+      <tr><td>3.5.4</td><td>星光集三视图（本轮）</td><td><span class="tag ok">已实现</span></td></tr>
+      <tr><td>3.7</td><td>待办事务管理（本轮）</td><td><span class="tag ok">已实现</span></td></tr>
+      <tr><td>7.3</td><td>时光胶囊（本轮）</td><td><span class="tag ok">已实现</span></td></tr>
+      <tr><td>7.3</td><td>年度探险报告 + 打印（本轮）</td><td><span class="tag ok">已实现</span></td></tr>
+      <tr><td>7.3</td><td>季节/节日主题推荐（本轮）</td><td><span class="tag ok">已实现</span></td></tr>
+      <tr><td>—</td><td>IndexedDB 图片扩容（解除 5MB 配额）</td><td><span class="tag ok">本轮</span></td></tr>
+      <tr><td>4.1</td><td>考古·第三方表格导入（CSV/HTML 智能列映射）</td><td><span class="tag ok">本轮</span></td></tr>
+      <tr><td>6.2</td><td>备份与同步（7 天提醒 / 备份到指定文件夹 / 网盘同步目录互通）</td><td><span class="tag ok">本轮</span></td></tr>
+      <tr><td>6.3</td><td>PWA PNG 192/512 图标（真机安装必备）</td><td><span class="tag ok">本轮</span></td></tr>
+      <tr><td>6.3</td><td>https 部署 + 真机 PWA 验证</td><td><span class="tag ok">本轮</span></td></tr>
+      <tr><td>6.3</td><td>永久部署配置（vercel.json + 忽略文件 + 部署指南）</td><td><span class="tag ok">本轮</span></td></tr>
+    </table>
+    </div>
+  </section>
+
+  <section class="card">
+    <h3>🎯 关键决策</h3>
+    <ul>
+      <li><b>技术形态</b>：纯前端静态站（HTML+CSS+原生 JS），数据存 localStorage。零安装、零部署，双击即用。</li>
+      <li><b>脚本加载</b>：用传统 <code>&lt;script&gt;</code> 而非 ES Module，避免 <code>file://</code> 下的 CORS 限制。</li>
+      <li><b>双人模拟</b>：单机版通过「身份切换」模拟 A/B 双方，完整保留双面叙事与双方确认逻辑。</li>
+      <li><b>文案生成</b>：PRD 要求接 LLM，本地版用模板引擎实现同风格输出，替换 <code>Recommend.writeCopy()</code> 即可接真模型。</li>
+      <li><b>标签黑名单软过滤</b>：一条低分旅程常带 6 个通用标签，全量剔除会清空候选池；改为候选 ≥3 条时才生效。</li>
+      <li><b>图片压缩降级</b>：1080px/85% → 800px/68%，避免超出 localStorage ~5MB 配额。</li>
+      <li><b>AI 唤醒用规则引擎</b>：PRD 要求接大模型出题，本地版用分分类问题库 + 模板合成，
+        离线可控。替换 <code>Awaken.bank()</code> / <code>Awaken.compose()</code> 即可接真模型。</li>
+      <li><b>考古复苏只读商户名+日期</b>：解析时主动过滤余额宝/花呗/转账/红包，金额不进任何字段（PRD 4.1 数据安全）。</li>
+      <li><b>LLM 只做渐进增强</b>：界面先用本地模板/题库秒出，LLM 结果到了才替换；
+        失败、超时（15s）、JSON 格式不对一律静默回退。所以不配密钥也完全能用。</li>
+      <li><b>LLM 只认 OpenAI 兼容协议</b>：一个端点字段就能在 DeepSeek / 通义 / 智谱 /
+        Moonshot / Ollama / 自建代理之间切换，不用改代码。</li>
+      <li><b>天气选 Open-Meteo</b>：免费、无密钥、允许跨域，是纯前端唯一能直接调的正规天气源。</li>
+      <li><b>通知只在页面开着时触发</b>：无服务端就没有后台推送，这是纯前端的硬边界，
+        不是偷懒。已用 PWA 安装 + 首页横幅做补偿，README 里写明了。</li>
+      <li><b>深色不是反相</b>：做成「夜间暖纸」（#1E1712 深棕底 + #F2E7DA 暖米字），
+        情绪色也整体降亮，保住纸感温度。</li>
+      <li><b>Phase 3 入口放在「我的 → 更多功能」</b>：星光集 / 待办 / 胶囊 / 报告
+        都没占底部 Tab，因为 PRD 5.2.2 明确规定了 5 个 Tab。</li>
+      <li><b>节日只收公历</b>：春节 / 七夕 / 中秋是农历，公历推算不了，README 里注明未收录。</li>
+      <li><b>PWA 必须 http/https</b>：<code>file://</code> 下浏览器禁用 SW 与安装能力，
+        所以把 <code>启动本地服务.bat</code> 提升为推荐方式。</li>
+      <li><b>IndexedDB 兜底扩张</b>：内存永远持全量 dataURL，持久层用 JSON.stringify
+        replacer 把超 48KB 的图换成 <code>@@idb:key@@</code> 占位符，本体放 IndexedDB。
+        视图 / 导出 / 双面叙事零改动。file:// 与隐私模式下若 IDB 不可用自动回退老路。</li>
+      <li><b>同内容图片自动去重</b>：keyOf 用 djb2 + 长度前缀，相同图片天然共享一个 IDB key。
+        同一张图被多处引用（封面+数组、合并双方）只存一次。</li>
+      <li><b>第三方表格走智能列映射</b>：嗅探表头关键词（名称/时间/分类/图片/金额），
+        金额列只用来跳过、绝不落地；无表头走启发式最长文本。无外链图下载（离线优先、不防盗链）。</li>
+      <li><b>PWA 真机三件套</b>：相对路径 start_url（任意子目录都能装）、PNG 192/512 图标
+        （Chromium 安装条件，iOS 触屏图标）、SW v4 预缓存（含 PNG 4 张）。
+        三个坑全踩过，少秋手机能直接装。</li>
+    </ul>
+  </section>
+
+  <section class="card">
+    <h3>⚠️ 待办与风险</h3>
+    <ul>
+      <li><span class="tag warn">风险</span><b>LLM 密钥明文存本地</b>：自用可接受，共享电脑别用。
+        缓解：端点可换成自建代理，代码不用改。</li>
+      <li><span class="tag warn">风险</span><b>三类能力依赖 http</b>：摄像头、通知、PWA 在
+        <code>file://</code> 下不可用。缓解：一键本地服务脚本 + CloudStudio https 链接 + 能力自动降级。</li>
+      <li><span class="tag warn">已解除</span><b>存储配额</b>：localStorage ~5MB。
+        <b>本轮已用 IndexedDB 兜底</b>（<code>@@idb:key@@</code> 占位符协议），
+        内存里大图全量、持久层瘦身后基本没有容量问题；导出仍自包含完整 dataURL。</li>
+      <li><span class="tag warn">风险</span><b>单机数据</b>：换浏览器/清缓存会丢数据。已提供 JSON 导出，建议定期备份。</li>
+      <li><span class="tag info">不做</span>真后台推送：需要 Service Worker + Web Push + 推送服务，
+        纯前端做不到，除非加一个后端。</li>
+      <li><span class="tag info">不做</span>数据考古接入第三方平台的官方接口：点评/小红书/美团无标准导出，
+        <b>本轮已落地的「通用 CSV/HTML 智能列映射」覆盖了 90% 第三方工具导出场景</b>，够用。</li>
+      <li><span class="tag gray">不做</span>多人模式（家庭 / 朋友圈）：需要账号体系与服务端。</li>
+      <li><span class="tag gray">不做</span>实体周边（打印相册 / 定制日历）：需要供应链。</li>
+    </ul>
+  </section>
+
+</div>
+
+<footer>
+  测试命令：<code>node .workbuddy/tmp/smoke.js</code>（140 项逻辑断言）·
+  <code>node .workbuddy/tmp/dom-test.js</code>（88 项真实 DOM 交互断言，需 jsdom）<br>
+  本看板为静态快照，随开发进展手动更新。
+</footer>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,8 @@
+# 部署时被排除（不上传到线上）
+.workbuddy/
+.git/
+.github/
+node_modules/
+*.log
+.DS_Store
+Thumbs.db

@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<meta name="theme-color" content="#FBF3E7">
+<meta name="description" content="探险家的罗盘 · 双人生活叙事与智能决策系统">
+<title>探险家的罗盘</title>
+
+<!-- PWA：装到手机主屏幕 / 电脑桌面 -->
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png" type="image/png">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="罗盘">
+<meta name="mobile-web-app-capable" content="yes">
+
+<link rel="stylesheet" href="css/tokens.css">
+<link rel="stylesheet" href="css/app.css">
+<link rel="stylesheet" href="css/views.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>🧭</text></svg>">
+</head>
+<body>
+
+<div id="app"></div>
+<div id="modal-root"></div>
+<div id="toast-root"></div>
+
+<button id="fab" class="fab" title="闪电存档 · 长按可拖动" aria-label="闪电存档">
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+       stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"></path>
+  </svg>
+</button>
+
+<script src="js/data.js"></script>
+<script src="js/store.js"></script>
+<script src="js/idb.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/seed.js"></script>
+<script src="js/recommend.js"></script>
+<script src="js/llm.js"></script>
+<script src="js/weather.js"></script>
+<script src="js/notify.js"></script>
+<script src="js/view-record.js"></script>
+<script src="js/view-journeys.js"></script>
+<script src="js/view-home.js"></script>
+<script src="js/view-compass.js"></script>
+<script src="js/view-wishes.js"></script>
+<script src="js/view-profile.js"></script>
+<script src="js/view-archaeology.js"></script>
+<script src="js/ai-awaken.js"></script>
+<script src="js/view-starlight.js"></script>
+<script src="js/view-todos.js"></script>
+<script src="js/view-capsule.js"></script>
+<script src="js/view-report.js"></script>
+<script src="js/export-book.js"></script>
+<script src="js/app.js"></script>
+
+</body>
+</html>
