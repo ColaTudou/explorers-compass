@@ -667,7 +667,7 @@ Views.profile = (function () {
       wide: true,
       body:
         '<div class="field"><label class="field__label">同步服务地址</label>' +
-        '<input class="input" id="syUrl" placeholder="https://101-33-254-221.sslip.io" value="' + UI.esc(c.url || '') + '">' +
+        '<input class="input" id="syUrl" placeholder="https://compass-sync.flashhub.net:8443" value="' + UI.esc(c.url || '') + '">' +
         '<div class="field__hint">两台设备填同一个地址</div></div>' +
 
         '<div class="field"><label class="field__label">同步密钥</label>' +
