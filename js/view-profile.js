@@ -905,9 +905,11 @@ Views.profile = (function () {
       /* 标记「已经初始化过」——否则下次启动 boot() 看到 users 为空会重新灌演示数据 */
       Store.state.meta.seeded = true;
       Store.save();
-      UI.toast('已清空');
-      location.hash = '#/home';
+      UI.toast('已清空，来填上你们俩的名字');
+      location.hash = '#/profile';
       App.render();
+      /* 空 App 没法用：立刻引导建立真实的双人绑定 */
+      setTimeout(function () { bindWizard(); }, 300);
     });
   }
 

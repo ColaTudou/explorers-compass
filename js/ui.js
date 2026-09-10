@@ -102,7 +102,12 @@ window.UI = (function () {
 
   function confirm(opts) {
     return new Promise(function (resolve) {
-      var m = modal({
+      /* ⚠ 关键：close() 会触发 onClose，而 onClose 也会 resolve。
+         必须用一个「只认第一次」的闸门挡住，否则点「确定」时
+         onClose 的 resolve(false) 会抢先生效，导致所有确认弹窗永远返回 false。 */
+      var settled = false;
+      function done(v) { if (settled) return; settled = true; resolve(v); }
+      modal({
         title: opts.title,
         body: '<div class="t-2">' + esc(opts.text || '') + '</div>',
         footer:
@@ -110,10 +115,10 @@ window.UI = (function () {
           '<button class="btn ' + (opts.danger ? 'btn--danger' : 'btn--primary') + '" data-act="yes">' +
           esc(opts.okText || '确定') + '</button>',
         onMount: function (el, close) {
-          el.querySelector('[data-act="no"]').onclick = function () { close(false); resolve(false); };
-          el.querySelector('[data-act="yes"]').onclick = function () { close(true); resolve(true); };
+          el.querySelector('[data-act="no"]').onclick = function () { done(false); close(); };
+          el.querySelector('[data-act="yes"]').onclick = function () { done(true); close(); };
         },
-        onClose: function () { resolve(false); }
+        onClose: function () { done(false); }
       });
     });
   }
