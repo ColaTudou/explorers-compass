@@ -311,6 +311,19 @@ window.App = (function () {
     return false;
   }
 
+  /* 识别 App 内置浏览器（微信 / QQ / 钉钉 / 支付宝 / 微博）——
+     这些环境一律不触发 beforeinstallprompt，装不了 PWA，必须引导用户"用浏览器打开" */
+  function inAppBrowser() {
+    var ua = (navigator.userAgent || '');
+    if (/MicroMessenger/i.test(ua)) return 'wechat';
+    if (/DingTalk/i.test(ua)) return 'dingtalk';
+    if (/AlipayClient/i.test(ua)) return 'alipay';
+    if (/Weibo/i.test(ua)) return 'weibo';
+    if (/\bQQ\//i.test(ua) || /QQBrowser/i.test(ua)) return 'qq';
+    return '';
+  }
+  function isWeChat() { return inAppBrowser() === 'wechat'; }
+
   /* ---------------- 桌面端键盘快捷键 ---------------- */
   function initShortcuts() {
     document.addEventListener('keydown', function (e) {
@@ -349,6 +362,7 @@ window.App = (function () {
   return {
     render: render, syncFab: syncFab, boot: boot, parse: parse,
     canInstall: canInstall, doInstall: doInstall, isStandalone: isStandalone,
+    inAppBrowser: inAppBrowser, isWeChat: isWeChat,
     showShortcutHelp: showShortcutHelp,
     applyTheme: applyTheme, setTheme: setTheme, cycleTheme: cycleTheme, isDark: isDark
   };

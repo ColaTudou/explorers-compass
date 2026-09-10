@@ -84,7 +84,8 @@ Views.profile = (function () {
               : '未授权', 'notify') +
       row('download', '安装到桌面 / 主屏幕',
         App.isStandalone() ? '已经安装好了'
-          : App.canInstall() ? '点这里安装' : '浏览器菜单里选「安装应用」', 'install') +
+          : (App.isWeChat && App.isWeChat()) ? '微信里装不了，点这里看方法'
+            : App.canInstall() ? '点这里安装' : '浏览器菜单里选「安装应用」', 'install') +
       '</div>';
 
     html += '<div class="card mb-base">' +
@@ -217,6 +218,25 @@ Views.profile = (function () {
 
   function doInstall() {
     if (App.isStandalone()) { UI.toast('已经装好了'); return; }
+
+    /* 微信 / QQ / 钉钉等 App 内置浏览器：永远触发不了安装，必须引导「用浏览器打开」 */
+    var inApp = (App.inAppBrowser ? App.inAppBrowser() : '');
+    if (inApp) {
+      var names = { wechat: '微信', qq: 'QQ', dingtalk: '钉钉', alipay: '支付宝', weibo: '微博' };
+      var an = names[inApp] || '这个 App';
+      UI.modal({
+        title: an + '里装不了 😅',
+        body: '<div class="t-2">' +
+          an + '内置的浏览器<b>不支持</b>「添加到主屏幕」，得先切到手机自带的浏览器：<br><br>' +
+          '<b>👉 点右上角「···」→ 选「在浏览器打开」</b><br><br>' +
+          '切过去之后，再进「我的 → 安装到桌面 / 主屏幕」，或者直接：<br>' +
+          '· <b>安卓</b>：Chrome 右上角 ⋮ → 「安装应用」<br>' +
+          '· <b>iPhone</b>：Safari 底部 <b>分享</b> → 「添加到主屏幕」<br><br>' +
+          '<span class="t-sm">放心：数据存在手机本地，换浏览器打开不会丢。</span></div>'
+      });
+      return;
+    }
+
     if (!App.canInstall()) {
       UI.modal({
         title: '怎么安装？',
