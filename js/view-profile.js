@@ -503,21 +503,53 @@ Views.profile = (function () {
           var obj = JSON.parse(fr.result);
           var data = obj.data || obj;
           if (!data.journeys) throw new Error('格式不对');
-          if (Store.importReplace) {
-            Store.importReplace(data).then(function () {
-              UI.toast('导入成功（大图已转入浏览器图库）', 'ok');
-              App.render();
-            });
-          } else {
-            Store.replaceAll(data);
-            UI.toast('导入成功', 'ok');
-            App.render();
-          }
+          askImportMode(data);
         } catch (e) { UI.toast('这个文件读不出来：' + e.message, 'err'); }
       };
       fr.readAsText(f);
     };
     inp.click();
+  }
+
+  /* 选「合并」还是「覆盖」—— 合并才是两人互通的正确姿势 */
+  function askImportMode(data) {
+    var n = (data.journeys || []).length;
+    UI.modal({
+      title: '怎么导入这份数据？',
+      sub: '这份备份里有 ' + n + ' 段旅程',
+      body: '<div class="t-2">' +
+        '<b>合并（推荐）</b> —— 把对方记的内容并进来，<b>你自己已有的记录不会丢</b>；' +
+        '同一条旅程的 A / B 两侧会自动拼在一起。<br><br>' +
+        '<b>覆盖</b> —— 用这份备份<b>替换掉</b>本机全部数据，换新手机 / 恢复备份时用。' +
+        '</div>',
+      footer:
+        '<button class="btn btn--secondary" data-act="replace">覆盖</button>' +
+        '<button class="btn btn--primary" data-act="merge">合并</button>',
+      onMount: function (el, close) {
+        el.querySelector('[data-act="merge"]').onclick = function () {
+          close();
+          if (Store.importMerge) {
+            Store.importMerge(data).then(function (s) {
+              UI.toast('合并完成：新增 ' + s.added + ' 段、补全 ' + s.sidesFilled + ' 侧', 'ok');
+              App.render();
+            });
+          } else {
+            Store.replaceAll(data); UI.toast('导入成功', 'ok'); App.render();
+          }
+        };
+        el.querySelector('[data-act="replace"]').onclick = function () {
+          close();
+          if (Store.importReplace) {
+            Store.importReplace(data).then(function () {
+              UI.toast('已覆盖本机数据', 'ok');
+              App.render();
+            });
+          } else {
+            Store.replaceAll(data); UI.toast('导入成功', 'ok'); App.render();
+          }
+        };
+      }
+    });
   }
 
   /* ---------------- 导出成故事书（叙事式，可翻阅 / 可打印） ---------------- */

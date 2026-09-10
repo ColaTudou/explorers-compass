@@ -260,6 +260,115 @@ window.Store = (function () {
     return Promise.resolve(false);
   }
 
+  /* ================= 合并导入（真双人模式） =================
+     两人各用一台设备记录，把对方导出的 JSON **合并**进来（而不是整体覆盖）。
+     规则：
+       ① 用户按 nickname 对齐 —— 两台设备各自绑定会生成不同的 uid，
+          所以要建「对方 id → 本地 id」映射，并把对方数据里的 user_id 全部改过来；
+       ② 旅程按 id 去重：本地没有的整条加入；同一条则**逐侧补全**
+          （本地缺的那一侧用对方的 —— 这正是双面叙事能拼起来的关键）；
+       ③ 标注 / 备注按 id 取并集；共识、重要标记按「有则用」；
+       ④ 愿望 / 待办 / 胶囊按 id 取并集；黑名单按 type+value 去重。
+     合并后 UI 会靠 mine && other 自动识别「双方都提交了 → 可合并确认」。 */
+  function mergeFrom(obj) {
+    var incoming = obj || {};
+    var stats = { added: 0, sidesFilled: 0, wishes: 0, todos: 0, capsules: 0 };
+
+    /* ① 用户对齐 */
+    var idMap = {};
+    (incoming.users || []).forEach(function (ru) {
+      var hit = state.users.filter(function (u) { return u.nickname === ru.nickname; })[0];
+      if (hit) idMap[ru.id] = hit.id;
+      else { state.users.push(ru); idMap[ru.id] = ru.id; }
+    });
+    var mId = function (id) { return (id && idMap[id]) || id; };
+    var mIds = function (a) { return (a || []).map(mId); };
+    var localCoupleId = state.couple ? state.couple.id : null;
+
+    function remapOwners(j) {
+      if (localCoupleId && j.couple_id) j.couple_id = localCoupleId;
+      if (j.roles) { j.roles.hunter = mId(j.roles.hunter); j.roles.poet = mId(j.roles.poet); }
+      ['a_side', 'b_side'].forEach(function (k) {
+        if (j[k] && j[k].user_id) j[k].user_id = mId(j[k].user_id);
+      });
+      if (j.created_by) j.created_by = mId(j.created_by);
+      if (j.important_marked_by) j.important_marked_by = mId(j.important_marked_by);
+      if (j.consensus) j.consensus.confirmed_by = mIds(j.consensus.confirmed_by);
+      (j.annotations || []).forEach(function (a) { if (a.author_id) a.author_id = mId(a.author_id); });
+      (j.notes || []).forEach(function (n) { if (n.author_id) n.author_id = mId(n.author_id); });
+    }
+    function unionById(a, b) {
+      var seen = {}, out = [];
+      (a || []).forEach(function (x) { if (x && x.id && !seen[x.id]) { seen[x.id] = 1; out.push(x); } });
+      (b || []).forEach(function (x) { if (x && x.id && !seen[x.id]) { seen[x.id] = 1; out.push(x); } });
+      return out;
+    }
+
+    /* ② 旅程 */
+    var byId = {};
+    state.journeys.forEach(function (j) { byId[j.id] = j; });
+    (incoming.journeys || []).forEach(function (rj) {
+      remapOwners(rj);
+      var lj = byId[rj.id];
+      if (!lj) { state.journeys.push(rj); byId[rj.id] = rj; stats.added++; return; }
+
+      /* 同一条 → 逐侧补全 */
+      ['a_side', 'b_side'].forEach(function (k) {
+        var ls = lj[k], rs = rj[k];
+        if (!rs) return;
+        if (!ls || !ls.text) { lj[k] = rs; stats.sidesFilled++; return; }
+        if (rs.text !== ls.text) {
+          /* 同一个人在两台设备都写过 → 取更新时间较新的 */
+          var rt = new Date(rj.updated_at || 0).getTime();
+          var lt = new Date(lj.updated_at || 0).getTime();
+          if (rt > lt) { lj[k] = rs; stats.sidesFilled++; }
+        }
+      });
+      lj.annotations = unionById(lj.annotations, rj.annotations);
+      lj.notes = unionById(lj.notes, rj.notes);
+      if (!lj.consensus && rj.consensus) lj.consensus = rj.consensus;
+      if (rj.is_important && !lj.is_important) {
+        lj.is_important = true;
+        lj.important_categories = rj.important_categories || lj.important_categories;
+        lj.important_marked_by = rj.important_marked_by;
+        lj.important_marked_at = rj.important_marked_at;
+      }
+      if (new Date(rj.updated_at || 0) > new Date(lj.updated_at || 0)) lj.updated_at = rj.updated_at;
+    });
+
+    /* ③ 愿望 / 待办 / 胶囊：按 id 取并集 */
+    ['wishes', 'todos', 'capsules'].forEach(function (key) {
+      var seen = {};
+      (state[key] || []).forEach(function (x) { if (x && x.id) seen[x.id] = 1; });
+      (incoming[key] || []).forEach(function (x) {
+        if (!x || !x.id || seen[x.id]) return;
+        if (localCoupleId && x.couple_id) x.couple_id = localCoupleId;
+        if (x.created_by) x.created_by = mId(x.created_by);
+        if (x.assignee) x.assignee = mId(x.assignee);
+        if (x.author_id) x.author_id = mId(x.author_id);
+        state[key].push(x); seen[x.id] = 1; stats[key]++;
+      });
+    });
+
+    /* ④ 黑名单：按 type + value 去重 */
+    var blSeen = {};
+    (state.blacklist || []).forEach(function (b) { if (b) blSeen[b.type + '|' + b.value] = 1; });
+    (incoming.blacklist || []).forEach(function (b) {
+      if (!b || blSeen[b.type + '|' + b.value]) return;
+      state.blacklist.push(b); blSeen[b.type + '|' + b.value] = 1;
+    });
+
+    save();
+    return stats;
+  }
+
+  /* 合并导入入口：合并 → 落盘 → 大图异步搬进 IndexedDB。返回 Promise<stats> */
+  function importMerge(obj) {
+    var stats = mergeFrom(obj);
+    if (window.IDB) return trimNow().then(function () { return stats; });
+    return Promise.resolve(stats);
+  }
+
   /* ---------- 用户 / 双人关系 ---------- */
   function me() {
     return state.users.filter(function (u) { return u.id === state.currentUserId; })[0] || null;
@@ -584,6 +693,7 @@ window.Store = (function () {
     get state() { return state; },
     isStorageOK: function () { return storageOK; },
     load: load, save: save, reset: reset, replaceAll: replaceAll, importReplace: importReplace,
+    mergeFrom: mergeFrom, importMerge: importMerge,
     restoreImages: restoreImages, trimNow: trimNow, gcImages: gcImages,
     keyOf: keyOf, isPlaceholder: isPlaceholder, usageInfo: usageInfo, idbUsage: idbUsage,
     me: me, partner: partner, userById: userById, isBonded: isBonded,
