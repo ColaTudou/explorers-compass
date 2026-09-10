@@ -193,11 +193,16 @@ window.App = (function () {
   function boot() {
     Store.load();
 
-    if (!Store.state.users.length) {
-      // 首次启动：建一对默认用户并载入演示数据，保证打开即有内容
+    /* 只有「全新安装」才灌演示数据。
+       ⚠ 必须同时看 meta.seeded：用户点过「清空全部数据」后 users 也是空的，
+       但那时不能再灌 —— 否则会出现「清空了、刷新又回来了」的假象。 */
+    var seeded = Store.state.meta && Store.state.meta.seeded;
+    if (!Store.state.users.length && !seeded) {
       Store.bindUsers('小鹿', '阿柚', { color: '琥珀色', adjective: '温暖的' });
       Seed.build(Store.state.couple);
-    } else {
+      Store.state.meta.seeded = true;
+      Store.save();
+    } else if (Store.state.users.length) {
       // 老用户：自动给旧版无图的 journey / capsule 补占位图（数据迁移，不丢内容）
       Seed.migrateAddCover();
     }

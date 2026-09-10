@@ -75,6 +75,57 @@ window.LLM = (function () {
     });
   }
 
+  /* 语音转文字：走 OpenAI 兼容的 /audio/transcriptions（Whisper 系接口）
+     支持：OpenAI、Groq、硅基流动（FunAudioLLM/SenseVoiceSmall）、
+     阿里百炼兼容模式（paraformer-v2 / qwen-audio-asr）、自建 new-api 代理等。
+     不支持音频的服务商会在这一步失败 → 调用方静默降级。 */
+  function asrEndpoint(base) {
+    base = String(base || '').trim().replace(/\/+$/, '');
+    base = base.replace(/\/chat\/completions$/, '');
+    return base + '/audio/transcriptions';
+  }
+
+  function transcribe(blob, opts) {
+    opts = opts || {};
+    var c = cfg();
+    if (!isOn()) return Promise.reject(new Error('LLM 未配置'));
+    if (typeof FormData === 'undefined') return Promise.reject(new Error('环境不支持 FormData'));
+
+    var ext = 'webm';
+    var t = String(blob && blob.type || '');
+    if (/mp4|m4a/.test(t)) ext = 'm4a';
+    else if (/wav/.test(t)) ext = 'wav';
+    else if (/ogg/.test(t)) ext = 'ogg';
+
+    var form = new FormData();
+    form.append('file', blob, 'voice.' + ext);
+    form.append('model', c.asrModel || 'whisper-1');
+
+    var ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    var timer = setTimeout(function () { if (ctrl) ctrl.abort(); }, opts.timeout || 60000);
+
+    return fetch(asrEndpoint(c.baseUrl), {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + c.apiKey },
+      body: form,
+      signal: ctrl ? ctrl.signal : undefined
+    }).then(function (r) {
+      clearTimeout(timer);
+      if (!r.ok) {
+        return r.text().then(function (t) { throw new Error('HTTP ' + r.status + ' ' + t.slice(0, 120)); });
+      }
+      return r.json();
+    }).then(function (j) {
+      var text = j && (j.text || (j.data && j.data.text) ||
+        (j.result && j.result.text) || (j.results && j.results[0] && j.results[0].text));
+      if (!text) throw new Error('没识别出内容');
+      return String(text).trim();
+    }).catch(function (e) {
+      clearTimeout(timer);
+      throw e;
+    });
+  }
+
   /* 从带 ```json 包裹或前后废话的文本里抠出 JSON */
   function parseJSON(text) {
     var s = String(text).replace(/```json/gi, '').replace(/```/g, '').trim();
@@ -187,7 +238,7 @@ window.LLM = (function () {
 
   return {
     PRESETS: PRESETS,
-    cfg: cfg, isOn: isOn, save: save, chat: chat,
+    cfg: cfg, isOn: isOn, save: save, chat: chat, transcribe: transcribe,
     writeCopy: writeCopy, questions: questions, composeText: composeText,
     normalizeQuestions: normalizeQuestions, parseJSON: parseJSON, test: test
   };

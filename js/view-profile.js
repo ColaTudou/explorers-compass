@@ -293,6 +293,12 @@ Views.profile = (function () {
         '<div class="field__hint" style="color:var(--warn)">⚠ 密钥明文存在本机浏览器里，只适合自用。' +
         '在意安全就把端点换成自建代理（one-api / new-api），代码不用改。</div></div>' +
 
+        '<div class="field"><label class="field__label">语音识别模型（可留空）</label>' +
+        '<input class="input" id="llmAsr" placeholder="FunAudioLLM/SenseVoiceSmall" value="' + UI.esc(c.asrModel || '') + '">' +
+        '<div class="field__hint">「用说的」按钮走的音频转写接口。留空用 whisper-1；' +
+        '硅基流动填 <b>FunAudioLLM/SenseVoiceSmall</b>、阿里百炼兼容模式填 <b>paraformer-v2</b>。' +
+        '服务商不支持语音也没关系，会自动退回引导你用输入法麦克风。</div></div>' +
+
         '<div id="llmTestOut" class="t-sm"></div>',
       footer:
         '<button class="btn btn--secondary" id="llmTest">测试连接</button>' +
@@ -318,6 +324,7 @@ Views.profile = (function () {
             enabled: true,
             baseUrl: el.querySelector('#llmBase').value.trim(),
             model: el.querySelector('#llmModel').value.trim(),
+            asrModel: el.querySelector('#llmAsr').value.trim(),
             apiKey: el.querySelector('#llmKey').value.trim()
           });
           LLM.test().then(function (r) {
@@ -331,6 +338,7 @@ Views.profile = (function () {
             enabled: t.classList.contains('is-on'),
             baseUrl: el.querySelector('#llmBase').value.trim(),
             model: el.querySelector('#llmModel').value.trim(),
+            asrModel: el.querySelector('#llmAsr').value.trim(),
             apiKey: el.querySelector('#llmKey').value.trim()
           });
           close(); UI.toast('已保存', 'ok'); App.render();
@@ -877,6 +885,8 @@ Views.profile = (function () {
         Store.bindUsers('小鹿', '阿柚', { color: '琥珀色', adjective: '温暖的' });
       }
       Seed.build(Store.state.couple);
+      Store.state.meta.seeded = true;
+      Store.save();
       UI.toast('演示数据已载入', 'ok');
       App.render();
     });
@@ -890,6 +900,9 @@ Views.profile = (function () {
     }).then(function (ok) {
       if (!ok) return;
       Store.reset();
+      /* 标记「已经初始化过」——否则下次启动 boot() 看到 users 为空会重新灌演示数据 */
+      Store.state.meta.seeded = true;
+      Store.save();
       UI.toast('已清空');
       location.hash = '#/home';
       App.render();

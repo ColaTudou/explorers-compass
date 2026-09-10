@@ -412,7 +412,7 @@ Views.record = (function () {
         '<input class="input" id="fLoc2" placeholder="在哪儿？"></div>' +
         '<div class="field"><label class="field__label">一句话（可留空）</label>' +
         '<textarea class="textarea" id="fText" placeholder="现在什么感觉？"></textarea>' +
-        '<button class="btn btn--text btn--sm mt-sm" id="fMic">🎙 用说的（语音转文字）</button>' +
+        '<button class="btn btn--text btn--sm mt-sm" id="fMic">🎙 用说的（说完自动变文字）</button>' +
         '</div>',
       footer:
         '<button class="btn btn--secondary" data-act="no">取消</button>' +
@@ -465,20 +465,107 @@ Views.record = (function () {
     return m;
   }
 
-  /* 语音转文字：优先 Web Speech API，不支持则提示手打 */
+  /* 语音转文字：网页语音识别能用就用，用不了/被拒就教用输入法自带的麦克风
+     （国内 Chrome 的网页识别要连 Google 服务器，基本不可用；输入法语音 100% 可用） */
+  function voiceGuide(reason, textarea) {
+    UI.modal({
+      title: '语音输入',
+      body: '<div class="t-2">' + (reason ? reason + '<br><br>' : '') +
+        '最稳的办法是<b>用手机输入法自带的语音</b>：点一下输入框 → 弹出键盘后按住键盘上的' +
+        '<b>🎙 麦克风键</b> → 说完松手，文字会自动填进来。<br><br>' +
+        '系统输入法、微信输入法、搜狗输入法都带这个麦克风键，不用另外授权，中文识别也更准。</div>',
+      footer: '<button class="btn btn--primary" data-act="ok">知道了</button>',
+      onMount: function (el, close) {
+        el.querySelector('[data-act="ok"]').onclick = function () { close(); if (textarea) textarea.focus(); };
+      }
+    });
+  }
+
+  /* 录音 → AI 转文字（MediaRecorder + OpenAI 兼容音频接口）。
+     失败一律静默降级到输入法引导，绝不卡住记录流程。 */
+  function startAiVoice(textarea, fallback) {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || typeof MediaRecorder === 'undefined') {
+      fallback('这个浏览器不支持录音。'); return;
+    }
+    navigator.mediaDevices.getUserMedia({ audio: true }).then(function (stream) {
+      var mr = new MediaRecorder(stream);
+      var chunks = [];
+      var modal = null;
+      var stopped = false;
+      var autoStop = null;
+
+      mr.ondataavailable = function (e) { if (e.data && e.data.size) chunks.push(e.data); };
+      mr.onstop = function () {
+        stopped = true;
+        clearTimeout(autoStop);
+        stream.getTracks().forEach(function (t) { t.stop(); });
+        if (modal) modal.close();
+        var blob = new Blob(chunks, { type: mr.mimeType || 'audio/webm' });
+        if (!blob.size) { fallback('没录到声音。'); return; }
+        UI.toast('识别中…');
+        LLM.transcribe(blob).then(function (text) {
+          textarea.value = (textarea.value ? textarea.value + ' ' : '') + text;
+          UI.toast('听清了', 'ok');
+          textarea.focus();
+        }).catch(function () {
+          fallback('这家 AI 服务商没返回识别结果（可能不支持语音接口）。');
+        });
+      };
+
+      mr.start();
+      modal = UI.modal({
+        title: '录音中…',
+        body: '<div class="t-2">说完点下面的停止，就会转成文字填进去。<br>' +
+          '<span class="t-sm">（最长 60 秒，到点自动停）</span></div>',
+        footer: '<button class="btn btn--danger" data-act="stop">停止并识别</button>',
+        sticky: true,
+        onMount: function (el, close) {
+          el.querySelector('[data-act="stop"]').onclick = function () { if (!stopped) mr.stop(); };
+        }
+      });
+      autoStop = setTimeout(function () { if (!stopped) mr.stop(); }, 60000);
+    }).catch(function () {
+      fallback('没拿到麦克风权限 —— 可以到浏览器设置里允许这个网站用麦克风。');
+    });
+  }
+
   function startVoice(textarea) {
+    function fallback(reason) { voiceGuide(reason, textarea); }
+
+    /* ① 配了 AI 且浏览器能录音 → 走 AI 转写（国内唯一靠谱的自动方案） */
+    if (window.LLM && LLM.isOn()) { startAiVoice(textarea, fallback); return; }
+
+    /* ② 否则试网页自带识别（Chrome/Edge 桌面版、境外网络可用） */
     var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SR) { UI.toast('当前浏览器不支持语音转文字，直接打字吧', 'err'); textarea.focus(); return; }
+    if (!SR) { voiceGuide('这个浏览器没有网页语音识别能力。', textarea); return; }
+
     var rec = new SR();
+    var settled = false;
     rec.lang = 'zh-CN'; rec.interimResults = false; rec.maxAlternatives = 1;
+
+    function fail(msg) {
+      if (settled) return;
+      settled = true;
+      voiceGuide(msg, textarea);
+    }
+
     UI.toast('开始说话…（说完会自动填入）');
     rec.onresult = function (e) {
+      settled = true;
       var t = e.results[0][0].transcript;
       textarea.value = (textarea.value ? textarea.value + ' ' : '') + t;
       UI.toast('听清了', 'ok');
+      textarea.focus();
     };
-    rec.onerror = function () { UI.toast('没听清，直接打字也行', 'err'); };
-    rec.start();
+    rec.onerror = function (e) {
+      if (e && e.error === 'not-allowed') fail('麦克风权限被拒绝了 —— 可以到浏览器设置里允许这个网站用麦克风。');
+      else fail('网页语音识别连不上识别服务器（国内网络常见）。');
+    };
+    rec.onend = function () {
+      // 一句话都没识别出结果就结束了，多半是服务不可用
+      if (!settled) fail('没听到内容，或识别服务不可用。');
+    };
+    try { rec.start(); } catch (err) { fail('语音识别启动失败。'); }
   }
 
   /* ---------------- 挂载分发 ---------------- */
