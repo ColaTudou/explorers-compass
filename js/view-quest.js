@@ -52,11 +52,21 @@ Views.quest = (function () {
     return html + '<div style="height:var(--xxl)"></div>';
   }
 
+  /* 列表卡片上的主题/位置小标签 */
+  function themeLine(q) {
+    if (!q.theme && !q.location) return '';
+    return '<div class="row row--tight row--wrap mt-sm">' +
+      (q.theme ? '<span class="tag tag--plain">🎨 ' + UI.esc(q.theme) + '</span>' : '') +
+      (q.location ? '<span class="tag tag--plain">📍 ' + UI.esc(q.location.label || '已定位') + '</span>' : '') +
+      '</div>';
+  }
+
   function actCard(q) {
     var p = Quest.progress(q);
     return '<div class="card card--pad" data-open="' + q.id + '">' +
       '<div class="row row--between">' +
       '<div class="grow"><div class="t-h3">' + (q.mode === 'trip' ? '🧳 ' : '🎲 ') + UI.esc(q.title) + '</div>' +
+      themeLine(q) +
       '<div class="t-sm mt-sm">完成 ' + p.done + '/' + p.total +
       (p.duoTotal ? ' · 双人 ' + p.duoDone + '/' + p.duoTotal : '') +
       (q.budget ? ' · 预算 ¥' + q.budget + (p.spent ? '（已花 ¥' + p.spent + '）' : '') : '') +
@@ -72,6 +82,7 @@ Views.quest = (function () {
     var stars = q.rating ? '　' + '★'.repeat(q.rating) + '☆'.repeat(5 - q.rating) : '　未评分';
     return '<div class="card card--pad" data-open="' + q.id + '">' +
       '<div class="t-h3">' + (q.mode === 'trip' ? '🧳 ' : '🎲 ') + UI.esc(q.title) + '</div>' +
+      themeLine(q) +
       '<div class="t-sm mt-sm">' + (String(q.finished_at||'').slice(0,10)) + ' · 完成 ' + s.done + '/' + s.total +
       (s.spent ? ' · 花了 ¥' + s.spent : '') + '</div>' +
       '<div class="t-sm" style="color:var(--warn)">' + stars + '</div>' +
@@ -97,6 +108,26 @@ Views.quest = (function () {
       '</div>' +
       '<div style="height:6px;background:var(--m0);border-radius:99px;overflow:hidden;margin-bottom:var(--base)">' +
       '<div style="height:100%;width:' + p.pct + '%;background:var(--brand);border-radius:99px"></div></div>';
+
+    /* 主题 / 规则 / 位置 */
+    var chips = '';
+    if (q.theme) chips += '<span class="tag tag--plain">🎨 ' + UI.esc(q.theme) + '</span>';
+    if (q.location) {
+      chips += '<span class="tag tag--plain">📍 ' + UI.esc(q.location.label || '当前位置') +
+        (q.location.weather ? ' · ' + UI.esc(q.location.weather) : '') + '</span>';
+    }
+    if (chips || (q.rules && q.rules.length)) {
+      html += '<div class="card card--pad mb-base">';
+      if (chips) html += '<div class="row row--tight row--wrap">' + chips + '</div>';
+      if (q.rules && q.rules.length) {
+        html += '<div class="t-h3 mt-base mb-sm">本局规则</div>' +
+          q.rules.map(function (r, i) {
+            return '<div class="t-sm">' + (i + 1) + '. ' + UI.esc(r.text) +
+              (r.from === 'ai' ? ' <span class="tag tag--plain">AI</span>' : '') + '</div>';
+          }).join('');
+      }
+      html += '</div>';
+    }
 
     if (q.status === 'finished' && q.summary) {
       html += '<div class="card card--pad mb-base">' +
@@ -139,6 +170,7 @@ Views.quest = (function () {
     if (q.status === 'active') {
       html += '<div class="row row--tight">' +
         '<button class="btn btn--ghost grow" id="qAdd">＋ 临时加个任务</button>' +
+        (window.LLM && LLM.isOn() ? '<button class="btn btn--ghost grow" id="qAddAi">✨ AI 补 2 个</button>' : '') +
         '<button class="btn btn--ghost" id="qDel">删除这局</button>' +
         '</div>';
     }
@@ -156,6 +188,7 @@ Views.quest = (function () {
       '<div class="row row--between">' +
       '<div class="grow"><div class="t-h3">' + (done ? '✅ ' : isDuo ? '👫 ' : '🎯 ') + UI.esc(t.title) + '</div>' +
       (t.desc ? '<div class="t-2 mt-sm">' + UI.esc(t.desc) + '</div>' : '') +
+      (t.why ? '<div class="t-sm mt-sm" style="color:var(--text-3)">💡 ' + UI.esc(t.why) + '</div>' : '') +
       '<div class="row row--tight row--wrap mt-sm">' +
       '<span class="tag ' + (isDuo ? 'tag--plain' : 'tag--plain') + '">' + UI.esc(who) + '</span>' +
       (t.from === 'ai' ? '<span class="tag tag--plain">✨ AI 出的</span>' : '') +
@@ -193,12 +226,45 @@ Views.quest = (function () {
   function openNew(mode) {
     var hasWish = (Store.state.wishes || []).filter(function (w) { return !w.is_done; }).length;
     var aiOn = !!(window.LLM && LLM.isOn());
+    var presets = (Quest.THEMES[mode] || []).slice(0, 8);
+    var loc = null;          /* 定位结果，勾选后才去取 */
+    var locating = false;
+
+    function themeInput(el) { return el.querySelector('#qTheme').value.trim(); }
+
     UI.modal({
       title: mode === 'trip' ? '🧳 开一局旅行' : '🎲 开一局日常',
-      sub: '系统从你们的心愿里挑几件事，再配上双人小任务',
+      sub: '定个主题、定几条规则，系统照着派任务',
       body:
         '<div class="field"><label class="field__label">给这局起个名字</label>' +
         '<input class="input" id="qTitle" placeholder="' + (mode === 'trip' ? '比如：厦门三天两夜' : '比如：周末瞎逛') + '"></div>' +
+
+        '<div class="field"><label class="field__label">🎨 主题（任务会围着它转）</label>' +
+        '<input class="input" id="qTheme" placeholder="自己写，或点下面的现成主题">' +
+        '<div class="row row--tight row--wrap mt-sm" id="qThemeChips">' +
+        presets.map(function (t) {
+          return '<button class="tag tag--plain" data-th="' + UI.esc(t.name) + '">' + UI.esc(t.name) + '</button>';
+        }).join('') +
+        '<button class="tag tag--plain" data-th="__random">🎲 随机</button>' +
+        '</div></div>' +
+
+        '<div class="field"><label class="field__label">📜 玩法规则（可留空，一行一条）</label>' +
+        '<textarea class="textarea" id="qRules" rows="3" placeholder="比如：\n全程只能步行\n拍照必须把对方拍进去"></textarea>' +
+        '<div class="row row--tight mt-sm">' +
+        '<button class="btn btn--ghost btn--sm" id="qRuleRandom">🎲 随机规则</button>' +
+        (aiOn ? '<button class="btn btn--ghost btn--sm" id="qRuleAi">✨ AI 定规则</button>' : '') +
+        '</div>' +
+        '<div class="field__hint">定了规则，AI 出的题就不许违反它</div></div>' +
+
+        (mode === 'trip' ?
+          '<div class="field"><label class="field__label">📍 位置</label>' +
+          '<label class="row row--tight" style="align-items:center">' +
+          '<input type="checkbox" id="qLoc" style="width:18px;height:18px;flex:none"> ' +
+          '<span class="t-sm">用当前位置，让任务贴合这里</span></label>' +
+          '<div class="field__hint" id="qLocOut">' +
+          (Quest.geoSupported() ? '只在开局这一刻取一次，不会记录轨迹、也不会上传' : '当前环境不支持定位（需要 https 且授权）') +
+          '</div></div>' : '') +
+
         '<div class="field"><label class="field__label">总预算（可留空）</label>' +
         '<input class="input" id="qBudget" type="number" inputmode="numeric" placeholder="填个总数就行，怎么花你们自己定">' +
         '<div class="field__hint">预算只用来记个数，不会限制你怎么花</div></div>' +
@@ -210,14 +276,72 @@ Views.quest = (function () {
         '</select></div>' +
         '<div class="card card--pad t-sm">' +
         '心愿池里有 <b>' + hasWish + '</b> 件没做的事，会优先被派成任务。<br>' +
-        '任务来源：' + (aiOn ? '<b>AI 生成</b>（失败自动用本地模板）' : '本地随机模板（想要 AI 出题去「我的 → AI 大模型」配置）') +
+        '任务来源：' + (aiOn ? '<b>AI 生成</b>（按主题/规则/位置出题，失败自动用本地模板）' : '本地随机模板（会尽量贴合主题；想要 AI 出题去「我的 → AI 大模型」配置）') +
         '</div>',
       footer: '<button class="btn btn--secondary" data-act="no">取消</button>' +
         '<button class="btn btn--primary" data-act="yes">开始派任务</button>',
       onMount: function (el, close) {
+        /* 主题：点标签填入 / 随机挑一个 */
+        el.querySelectorAll('[data-th]').forEach(function (b) {
+          b.onclick = function () {
+            var v = b.dataset.th;
+            if (v === '__random') {
+              var all = Quest.THEMES[mode] || [];
+              v = all[Math.floor(Math.random() * all.length)].name;
+            }
+            el.querySelector('#qTheme').value = v;
+            el.querySelectorAll('[data-th]').forEach(function (x) { x.className = 'tag tag--plain'; });
+            b.className = 'tag tag--success';
+          };
+        });
+
+        /* 随机规则 */
+        el.querySelector('#qRuleRandom').onclick = function () {
+          var rs = Quest.randomRules(themeInput(el) || '随便逛逛', mode, 3);
+          el.querySelector('#qRules').value = rs.join('\n');
+          UI.toast('换了一批规则', 'ok');
+        };
+
+        /* AI 定规则 */
+        var rai = el.querySelector('#qRuleAi');
+        if (rai) rai.onclick = function () {
+          rai.disabled = true; rai.textContent = '✨ 思考中…';
+          Quest.aiRules(themeInput(el), mode, 3).then(function (rs) {
+            rai.disabled = false; rai.textContent = '✨ AI 定规则';
+            if (!rs.length) { UI.toast('AI 没憋出来，试试随机规则', 'err'); return; }
+            el.querySelector('#qRules').value = rs.join('\n');
+            UI.toast('规则定好了', 'ok');
+          });
+        };
+
+        /* 定位（仅旅行模式） */
+        var locBox = el.querySelector('#qLoc');
+        if (locBox) locBox.onchange = function () {
+          var out = el.querySelector('#qLocOut');
+          if (!locBox.checked) { loc = null; out.textContent = '已关闭'; return; }
+          if (locating) return;
+          locating = true;
+          out.textContent = '正在定位…';
+          Quest.locate().then(function (c) {
+            locating = false;
+            if (!c) {
+              locBox.checked = false; loc = null;
+              out.textContent = '定位失败（需要授权；也可以不开，任务照常派）';
+              UI.toast('没拿到位置，不影响开局', 'err');
+              return;
+            }
+            loc = c;
+            out.textContent = '📍 ' + (c.label || '当前位置') + '（' + c.lat.toFixed(3) + ', ' + c.lng.toFixed(3) + '）';
+            /* 顺带带一份天气给 AI 参考，拿不到就算了 */
+            attachWeather(c);
+          });
+        };
+
         el.querySelector('[data-act="no"]').onclick = function () { close(); };
         el.querySelector('[data-act="yes"]').onclick = function () {
           var title = el.querySelector('#qTitle').value.trim();
+          var theme = themeInput(el);
+          var rules = el.querySelector('#qRules').value;
           var budget = el.querySelector('#qBudget').value.trim();
           var count = Number(el.querySelector('#qCount').value) || 5;
           close();
@@ -225,6 +349,9 @@ Views.quest = (function () {
           var q = Quest.create({
             mode: mode,
             title: title || (mode === 'trip' ? '一次旅行' : '今日份冒险'),
+            theme: theme,
+            rules: rules,
+            location: loc,
             budget: budget === '' ? null : budget
           });
           Quest.generate(q, { count: count, ai: aiOn }).then(function () {
@@ -235,6 +362,18 @@ Views.quest = (function () {
         };
       }
     });
+  }
+
+  /* 给定位补一份天气（纯装饰，拿不到就算了；固定城市时不取，避免错配） */
+  function attachWeather(loc) {
+    try {
+      if (!window.Weather || !Weather.settings) return;
+      var s = Weather.settings();
+      if (s && s.city && s.city !== 'auto') return;
+      Weather.get().then(function (w) {
+        if (w && w.text) loc.weather = w.text + (w.temp != null ? ' ' + w.temp + '℃' : '');
+      }).catch(function () { });
+    } catch (e) { }
   }
 
   /* ---------------- 打卡 ---------------- */
@@ -420,6 +559,17 @@ Views.quest = (function () {
           status: 'todo', checkins: [], rating: null, from: 'manual', wish_id: null, spent: 0
         });
         Store.save(); UI.toast('加上了', 'ok'); App.render();
+      });
+    };
+
+    var addAi = root.querySelector('#qAddAi');
+    if (addAi) addAi.onclick = function () {
+      addAi.disabled = true; addAi.textContent = '✨ 出题中…';
+      Quest.moreTasks(q, 2).then(function (ts) {
+        addAi.disabled = false; addAi.textContent = '✨ AI 补 2 个';
+        if (!ts.length) { UI.toast('AI 没憋出来，手动加一个吧', 'err'); return; }
+        UI.toast('补了 ' + ts.length + ' 个', 'ok');
+        App.render();
       });
     };
 
