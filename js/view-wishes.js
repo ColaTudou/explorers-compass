@@ -15,7 +15,9 @@ Views.wishes = (function () {
       '<div class="row row--between mb-md">' +
       '<div><h1 class="t-h1">共同愿望清单</h1>' +
       '<div class="t-cap mt-sm">想一起做的事，做完了就变成旅程</div></div>' +
-      '<button class="btn btn--primary btn--sm" id="btnAdd">' + UI.icon('plus', 16) + ' 添加</button></div>' +
+      '<div class="row row--tight" style="flex:none">' +
+      '<button class="btn btn--secondary btn--sm" id="btnQuest">🎯 开一局</button>' +
+      '<button class="btn btn--primary btn--sm" id="btnAdd">' + UI.icon('plus', 16) + ' 添加</button></div></div>' +
 
       '<div class="card card--pad mb-base" style="background:linear-gradient(135deg,#FFF9F1,#F3DFCF)">' +
       '<div class="row row--between">' +
@@ -63,6 +65,9 @@ Views.wishes = (function () {
   function mount(root) {
     var ba = root.querySelector('#btnAdd');
     if (ba) ba.onclick = addWishDialog;
+
+    var bq = root.querySelector('#btnQuest');
+    if (bq) bq.onclick = function () { location.hash = '#/quest'; App.render(); };
 
     var bl = root.querySelector('#btnLucky');
     if (bl) bl.onclick = function () {

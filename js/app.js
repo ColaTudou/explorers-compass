@@ -16,7 +16,8 @@ window.App = (function () {
     home: '探险家的罗盘', journeys: '旅程', compass: '罗盘',
     wishes: '愿望清单', profile: '我的', record: '记录中', merge: '合并确认',
     archaeology: '考古复苏', awaken: '陪聊唤醒',
-    starlight: '星光集', todos: '待办', capsule: '时光胶囊', report: '年度报告'
+    starlight: '星光集', todos: '待办', capsule: '时光胶囊', report: '年度报告',
+    quest: '任务冒险'
   };
 
   function parse() {
@@ -102,6 +103,7 @@ window.App = (function () {
       case 'todos': body = Views.todos.render(); break;
       case 'capsule': body = Views.capsule.render(); break;
       case 'report': body = Views.report.render(); break;
+      case 'quest': body = Views.quest.render(r.id); break;
       default: body = '<div class="empty">页面不见了</div>';
     }
 
@@ -137,6 +139,7 @@ window.App = (function () {
       case 'todos': Views.todos.mount(main); break;
       case 'capsule': Views.capsule.mount(main); break;
       case 'report': Views.report.mount(main); break;
+      case 'quest': Views.quest.mount(main, r.id); break;
     }
 
     var sf = document.getElementById('sideFlash');

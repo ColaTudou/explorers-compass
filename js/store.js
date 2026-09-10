@@ -180,6 +180,7 @@ window.Store = (function () {
       wishes: [],
       todos: [],
       capsules: [],
+      quests: [],          // 任务冒险：每一局见 js/quest.js
       blacklist: [],
       settings: {
         fabEnabled: true, roleLast: null, theme: 'auto',
@@ -338,7 +339,7 @@ window.Store = (function () {
     });
 
     /* ③ 愿望 / 待办 / 胶囊：按 id 取并集 */
-    ['wishes', 'todos', 'capsules'].forEach(function (key) {
+    ['wishes', 'todos', 'capsules', 'quests'].forEach(function (key) {
       var seen = {};
       (state[key] || []).forEach(function (x) { if (x && x.id) seen[x.id] = 1; });
       (incoming[key] || []).forEach(function (x) {

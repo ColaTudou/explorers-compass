@@ -4,7 +4,7 @@
    策略：静态资源 stale-while-revalidate；页面导航 network-first 兜底缓存。
    注意：SW 只在 http://localhost 或 https 下能注册，file:// 直接跳过。
    ============================================================ */
-var CACHE = 'compass-v9';
+var CACHE = 'compass-v10';
 
 var ASSETS = [
   './',
@@ -40,6 +40,8 @@ var ASSETS = [
   './js/view-capsule.js',
   './js/view-report.js',
   './js/export-book.js',
+  './js/quest.js',
+  './js/view-quest.js',
   './js/sync.js',
   './js/ai-awaken.js',
   './js/app.js'

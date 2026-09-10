@@ -30,6 +30,10 @@ window.BookExport = (function () {
     } else if (opts.range === 'archived') {
       list = list.filter(function (j) { return j.status === 'archived' || j.status === 'sealed'; });
     }
+    // 按指定 id 筛（任务冒险归档后单独出书用）
+    if (opts.ids && opts.ids.length) {
+      list = list.filter(function (j) { return opts.ids.indexOf(j.id) >= 0; });
+    }
     // 按分类筛（'all' / 空 = 不限）
     if (opts.category && opts.category !== 'all') {
       list = list.filter(function (j) { return (j.category || '其他') === opts.category; });

@@ -67,6 +67,7 @@ Views.profile = (function () {
       more('✅', '待办', (Store.state.todos || []).filter(function (t) { return !t.is_done; }).length + ' 项', 'todos') +
       more('💊', '时光胶囊', (Store.state.capsules || []).length + ' 颗', 'capsule') +
       more('📊', '年度报告', '看看这一年', 'report') +
+      more('🎯', '任务冒险', '派任务 · 打卡 · 存档', 'quest') +
       '</div>';
 
     /* 设置项：外部服务 */
@@ -180,6 +181,7 @@ Views.profile = (function () {
           case 'todos': location.hash = '#/todos'; break;
           case 'capsule': location.hash = '#/capsule'; break;
           case 'report': location.hash = '#/report'; break;
+          case 'quest': location.hash = '#/quest'; break;
           case 'theme': App.cycleTheme(); UI.toast('外观：' + themeLabel()); App.render(); break;
         }
       };
