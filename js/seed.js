@@ -19,6 +19,29 @@ window.Seed = (function () {
   }
   function T() { return DATA.tagIdOf.apply(null, arguments); }
 
+  /* 占位图：按分类配色 + emoji + 地点，SVG 内嵌 dataURL（<1KB，自动内联不进 IDB）。
+     让演示数据 12 条旅程都有照片，故事书导出来立刻有图可看。 */
+  function cover(cat, loc) {
+    var pal = { '美食': ['#A78B71','#5D4E37'], '探店': ['#3A506B','#1B2845'],
+                '居家': ['#88A096','#5C7A6E'], '旅行': ['#5F7F67','#34463A'],
+                '手工': ['#A38AB5','#6B567A'], '演出': ['#D08FA0','#8E5A6D'],
+                '运动': ['#7A9B7E','#4E6B52'], '其他': ['#8A857C','#5C5853'] };
+    var c = pal[cat] || pal['其他'];
+    var e = (DATA.categoryEmoji && DATA.categoryEmoji[cat]) || '✨';
+    var esc = function (s) { return String(s).replace(/[<>&]/g, function (m) { return ({'<':'&lt;','>':'&gt;','&':'&amp;'})[m]; }); };
+    var svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600">' +
+      '<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">' +
+      '<stop offset="0" stop-color="' + c[0] + '"/><stop offset="1" stop-color="' + c[1] + '"/>' +
+      '</linearGradient></defs>' +
+      '<rect width="800" height="600" fill="url(#g)"/>' +
+      '<circle cx="640" cy="480" r="180" fill="rgba(255,255,255,0.12)"/>' +
+      '<circle cx="180" cy="120" r="80" fill="rgba(255,255,255,0.08)"/>' +
+      '<text x="400" y="320" text-anchor="middle" font-size="160" opacity="0.9">' + e + '</text>' +
+      '<text x="400" y="470" text-anchor="middle" font-size="32" fill="rgba(255,255,255,0.92)" font-family="serif">' + esc(loc) + '</text>' +
+      '</svg>';
+    return 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svg)));
+  }
+
   var RAW = [
     {
       d: 1, cat: '美食', loc: '巷子口的意面小馆', weather: '晴', expense: 88,
@@ -97,29 +120,6 @@ window.Seed = (function () {
   ];
 
   function build(couple) {
-    /* 占位图：按分类配色 + emoji + 地点，SVG 内嵌 dataURL（<1KB，自动内联不进 IDB）。
-       让演示数据 12 条旅程都有照片，故事书导出来立刻有图可看。 */
-    function cover(cat, loc) {
-      var pal = { '美食': ['#A78B71','#5D4E37'], '探店': ['#3A506B','#1B2845'],
-                  '居家': ['#88A096','#5C7A6E'], '旅行': ['#5F7F67','#34463A'],
-                  '手工': ['#A38AB5','#6B567A'], '演出': ['#D08FA0','#8E5A6D'],
-                  '运动': ['#7A9B7E','#4E6B52'], '其他': ['#8A857C','#5C5853'] };
-      var c = pal[cat] || pal['其他'];
-      var e = (DATA.categoryEmoji && DATA.categoryEmoji[cat]) || '✨';
-      var esc = function (s) { return String(s).replace(/[<>&]/g, function (m) { return ({'<':'&lt;','>':'&gt;','&':'&amp;'})[m]; }); };
-      var svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600">' +
-        '<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">' +
-        '<stop offset="0" stop-color="' + c[0] + '"/><stop offset="1" stop-color="' + c[1] + '"/>' +
-        '</linearGradient></defs>' +
-        '<rect width="800" height="600" fill="url(#g)"/>' +
-        '<circle cx="640" cy="480" r="180" fill="rgba(255,255,255,0.12)"/>' +
-        '<circle cx="180" cy="120" r="80" fill="rgba(255,255,255,0.08)"/>' +
-        '<text x="400" y="320" text-anchor="middle" font-size="160" opacity="0.9">' + e + '</text>' +
-        '<text x="400" y="470" text-anchor="middle" font-size="32" fill="rgba(255,255,255,0.92)" font-family="serif">' + esc(loc) + '</text>' +
-        '</svg>';
-      return 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svg)));
-    }
-
     var ua = couple.user_a_id, ub = couple.user_b_id;
     var list = [];
 
@@ -302,5 +302,32 @@ window.Seed = (function () {
     Store.save();
   }
 
-  return { build: build };
+  /* 数据迁移：给老版本（无图）的 journey / capsule 自动补占位图，不丢内容。
+     app.js 在已绑定用户启动时调用一次。 */
+  function migrateAddCover() {
+    var dirty = false;
+    Store.state.journeys.forEach(function (j) {
+      if (!j.cover_image) {
+        j.cover_image = cover(j.category, j.location_name);
+        dirty = true;
+      }
+      if (j.a_side && (!j.a_side.images || j.a_side.images.length === 0)) {
+        j.a_side.images = [j.cover_image];
+        dirty = true;
+      }
+      if (j.b_side && (!j.b_side.images || j.b_side.images.length === 0)) {
+        j.b_side.images = [j.cover_image];
+        dirty = true;
+      }
+    });
+    Store.state.capsules.forEach(function (c) {
+      if (!c.images || c.images.length === 0) {
+        c.images = [cover('其他', c.title)];
+        dirty = true;
+      }
+    });
+    if (dirty) Store.save();
+  }
+
+  return { build: build, migrateAddCover: migrateAddCover };
 })();
