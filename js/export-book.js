@@ -30,6 +30,10 @@ window.BookExport = (function () {
     } else if (opts.range === 'archived') {
       list = list.filter(function (j) { return j.status === 'archived' || j.status === 'sealed'; });
     }
+    // 按分类筛（'all' / 空 = 不限）
+    if (opts.category && opts.category !== 'all') {
+      list = list.filter(function (j) { return (j.category || '其他') === opts.category; });
+    }
     // 故事书按时间正序：从最早走到最近
     return list.sort(function (a, b) { return new Date(a.start_date) - new Date(b.start_date); });
   }
@@ -147,6 +151,7 @@ window.BookExport = (function () {
     years.sort();
     var rangeText = opts.range === 'year' ? (new Date().getFullYear() + ' 年')
       : opts.range === 'archived' ? '已完成的部分' : '全部记录';
+    if (opts.category && opts.category !== 'all') rangeText += ' · 只看「' + opts.category + '」';
 
     var h = '<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8">' +
       '<meta name="viewport" content="width=device-width,initial-scale=1">' +
@@ -184,15 +189,44 @@ window.BookExport = (function () {
       h += '<section class="empty"><p>这个范围里还没有记录。换个范围试试？</p></section>';
     }
 
-    /* 尾声统计 */
+    /* 想一起做的事（愿望清单） */
+    var wishes = (Store.state.wishes || []).slice().sort(function (a, b) {
+      return new Date(a.created_at) - new Date(b.created_at);
+    });
+    var wishDone = wishes.filter(function (w) { return w.is_done; }).length;
+    if (wishes.length) {
+      h += '<section class="wishes no-break"><h2>想一起做的事' +
+        '<span class="cnt">' + wishDone + ' / ' + wishes.length + ' 已完成</span></h2>' +
+        '<div class="wish-list">' + wishes.map(function (w) {
+          return '<div class="wish' + (w.is_done ? ' is-done' : '') + '">' +
+            '<span class="wish__box">' + (w.is_done ? '✓' : '') + '</span>' +
+            '<div class="grow"><div class="wish__t">' + esc(w.title) + '</div>' +
+            (w.description ? '<div class="wish__d">' + esc(w.description) + '</div>' : '') +
+            '<div class="wish__m">' + (w.category ? esc(w.category) + ' · ' : '') +
+            (w.is_done
+              ? '已完成' + (w.completed_at ? ' · ' + esc(cnDate(w.completed_at)) : '')
+              : '还没做') +
+            '</div></div></div>';
+        }).join('') + '</div></section>';
+    }
+
+    /* 尾声：我们一起走过的路 */
     var cats = Object.keys(catCount).sort(function (a, b) { return catCount[b] - catCount[a]; });
-    h += '<section class="stats no-break"><h2>这一年去了哪些地方</h2><div class="bars">' +
-      cats.map(function (k) {
-        var pct = Math.round(catCount[k] / list.length * 100);
-        return '<div class="bar"><span class="bar__k">' + esc((DATA.categoryEmoji && DATA.categoryEmoji[k]) || '') + ' ' + esc(k) + '</span>' +
-          '<span class="bar__t"><i style="width:' + pct + '%"></i></span>' +
-          '<span class="bar__v">' + catCount[k] + '</span></div>';
-      }).join('') + '</div>' +
+    var importantCount = list.filter(function (j) { return j.is_important; }).length;
+    h += '<section class="stats no-break"><h2>我们一起走过的路</h2>' +
+      '<div class="kpis">' +
+      '<div class="kpi"><b>' + list.length + '</b><span>段记忆</span></div>' +
+      (withPhotos ? '<div class="kpi"><b>' + photoCount + '</b><span>张照片</span></div>' : '') +
+      '<div class="kpi"><b>' + importantCount + '</b><span>次重要时光</span></div>' +
+      '<div class="kpi"><b>' + wishDone + '</b><span>个愿望实现</span></div>' +
+      '</div>' +
+      (cats.length ? '<div class="bars">' +
+        cats.map(function (k) {
+          var pct = Math.round(catCount[k] / list.length * 100);
+          return '<div class="bar"><span class="bar__k">' + esc((DATA.categoryEmoji && DATA.categoryEmoji[k]) || '') + ' ' + esc(k) + '</span>' +
+            '<span class="bar__t"><i style="width:' + pct + '%"></i></span>' +
+            '<span class="bar__v">' + catCount[k] + '</span></div>';
+        }).join('') + '</div>' : '') +
       '<p class="muted">共 ' + list.length + ' 段记忆' + (withPhotos ? '、' + photoCount + ' 张照片' : '') +
       '。数据只存在你们自己的设备里，这一页是给回忆用的。</p></section>';
 
@@ -247,6 +281,19 @@ window.BookExport = (function () {
       '.muted{color:#9A8878}.j__tags{margin-top:12px;display:flex;flex-wrap:wrap;gap:6px}' +
       '.tag{background:#F3DFCF;border-radius:10px;padding:2px 10px;font-size:12px;color:#7A6656}' +
       '.j__note,.j__anno{margin-top:10px;font-size:13px;color:#5A4636;background:#FFF9F1;border-left:3px solid #E8D3B8;padding:8px 12px;border-radius:6px}' +
+      '.wishes h2 .cnt{font-size:13px;font-weight:400;color:#9A8878;margin-left:10px}' +
+      '.wish-list{display:flex;flex-direction:column;gap:10px}' +
+      '.wish{display:flex;gap:10px;align-items:flex-start;background:#fff;border-radius:10px;padding:12px 14px}' +
+      '.wish__box{flex:none;width:20px;height:20px;border:1.5px solid #D9C7B2;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:13px;color:#fff;line-height:1}' +
+      '.wish.is-done .wish__box{background:#1D9E75;border-color:#1D9E75}' +
+      '.wish.is-done .wish__t{color:#9A8878;text-decoration:line-through}' +
+      '.wish__t{font-size:15px;font-weight:500}' +
+      '.wish__d{font-size:13px;color:#7A6656;margin-top:2px}' +
+      '.wish__m{font-size:12px;color:#9A8878;margin-top:4px}' +
+      '.kpis{display:flex;flex-wrap:wrap;gap:10px;margin:8px 0 18px}' +
+      '.kpi{flex:1 1 90px;background:#fff;border-radius:10px;padding:12px;text-align:center}' +
+      '.kpi b{display:block;font-size:22px;color:#D9822B;line-height:1.3}' +
+      '.kpi span{font-size:12px;color:#7A6656}' +
       '.bars{margin:8px 0 16px}.bar{display:flex;align-items:center;gap:10px;margin:8px 0;font-size:13px}' +
       '.bar__k{width:88px;color:#7A6656}.bar__t{flex:1;height:8px;background:#EFE3D4;border-radius:4px;overflow:hidden}' +
       '.bar__t i{display:block;height:100%;background:#D9822B}.bar__v{width:28px;text-align:right;color:#7A6656}' +
@@ -254,7 +301,7 @@ window.BookExport = (function () {
       '@media print{body{background:#fff}.no-print{display:none}' +
       '@page{size:A4;margin:14mm}' +
       '.cover{page-break-after:always;min-height:auto;padding:80px 0}' +
-      '.j,.no-break{page-break-inside:avoid}' +
+      '.j,.no-break,.wish,.kpis{page-break-inside:avoid}' +
       '.year h2{page-break-after:avoid}' +
       '.j__photos img{height:150px}.photos--1 img{height:220px}}';
   }

@@ -503,6 +503,7 @@ Views.profile = (function () {
   /* ---------------- 导出成故事书（叙事式，可翻阅 / 可打印） ---------------- */
   function openBookExport() {
     if (!window.BookExport) { UI.toast('故事书模块没加载上', 'err'); return; }
+    var cats = ['全部'].concat((DATA.categories || []).slice());
     UI.promptSheet({
       title: '导出成故事书',
       sub: '把记录按时间线排成一本回忆录：双击就能翻，打印即可存成 PDF',
@@ -510,6 +511,9 @@ Views.profile = (function () {
         {
           key: 'range', label: '范围', type: 'select', value: '全部',
           options: ['全部', '今年', '仅已完成的（已归档）']
+        },
+        {
+          key: 'category', label: '分类', type: 'select', value: '全部', options: cats
         },
         {
           key: 'photos', label: '照片', type: 'select', value: '含照片',
@@ -522,7 +526,11 @@ Views.profile = (function () {
       var range = 'all';
       if (v.range === '今年') range = 'year';
       else if (v.range === '仅已完成的（已归档）') range = 'archived';
-      BookExport.download({ range: range, photos: v.photos !== '不要照片（纯文字，文件小很多）' });
+      BookExport.download({
+        range: range,
+        category: (v.category && v.category !== '全部') ? v.category : 'all',
+        photos: v.photos !== '不要照片（纯文字，文件小很多）'
+      });
     });
   }
 
