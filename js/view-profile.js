@@ -516,6 +516,10 @@ Views.profile = (function () {
           key: 'category', label: '分类', type: 'select', value: '全部', options: cats
         },
         {
+          key: 'cover', label: '封面', type: 'select', value: '经典封面',
+          options: ['经典封面', '用最新的一张照片', '用重要时光的照片', '从相册选一张…']
+        },
+        {
           key: 'photos', label: '照片', type: 'select', value: '含照片',
           options: ['含照片', '不要照片（纯文字，文件小很多）']
         }
@@ -526,10 +530,25 @@ Views.profile = (function () {
       var range = 'all';
       if (v.range === '今年') range = 'year';
       else if (v.range === '仅已完成的（已归档）') range = 'archived';
-      BookExport.download({
+      var coverMode = 'classic';
+      if (v.cover === '用最新的一张照片') coverMode = 'latest';
+      else if (v.cover === '用重要时光的照片') coverMode = 'important';
+      else if (v.cover === '从相册选一张…') coverMode = 'pick';
+      var opts = {
         range: range,
         category: (v.category && v.category !== '全部') ? v.category : 'all',
+        cover: coverMode,
         photos: v.photos !== '不要照片（纯文字，文件小很多）'
+      };
+      if (coverMode !== 'pick') { BookExport.download(opts); return; }
+      // 从相册选一张做封面
+      UI.pickImages(false).then(function (files) {
+        if (!files || !files.length) { BookExport.download(opts); return; }
+        UI.toast('正在处理封面照片…');
+        UI.compressImage(files[0], 1200, .72).then(function (url) {
+          opts.coverImage = url;
+          BookExport.download(opts);
+        }).catch(function () { BookExport.download(opts); });
       });
     });
   }

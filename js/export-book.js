@@ -59,6 +59,19 @@ window.BookExport = (function () {
     if (j.roles.poet === uid) return '诗人';
     return '';
   }
+
+  /* 封面照片：'latest' 取最新一条有图的，'important' 取重要时光里第一张 */
+  function autoCover(mode, list) {
+    if (mode !== 'latest' && mode !== 'important') return '';
+    var pool = mode === 'important'
+      ? list.filter(function (j) { return j.is_important; })
+      : list.slice().reverse();
+    for (var i = 0; i < pool.length; i++) {
+      var ps = photosOf(pool[i], true);
+      if (ps.length) return ps[0];
+    }
+    return '';
+  }
   function scoreOf(j) {
     var v = [];
     if (j.a_side && j.a_side.score) v.push(j.a_side.score);
@@ -158,15 +171,19 @@ window.BookExport = (function () {
       '<title>探险家的罗盘 · ' + esc(title) + '的故事书</title><style>' + css() + '</style></head><body>';
 
     /* 封面 */
-    h += '<header class="cover">' +
-      '<div class="cover__mark">🧭</div>' +
+    var coverImg = opts.coverImage || autoCover(opts.cover, list);
+    var coverBody = '<div class="cover__mark">🧭</div>' +
       '<h1>探险家的罗盘</h1>' +
       '<div class="cover__sub">' + esc(title) + ' · 的故事书</div>' +
       '<div class="cover__meta">' + esc(rangeText) + ' · 共 ' + list.length + ' 段记忆' +
       (withPhotos ? ' · ' + photoCount + ' 张照片' : '') + '</div>' +
       '<div class="cover__date">生成于 ' + esc(cnDate(new Date().toISOString())) + '</div>' +
-      '<div class="cover__tip no-print">点右上角「打印」→ 另存为 PDF，就是一本能翻的册子</div>' +
-      '</header>';
+      '<div class="cover__tip no-print">点右上角「打印」→ 另存为 PDF，就是一本能翻的册子</div>';
+    h += coverImg
+      ? '<header class="cover cover--photo">' +
+        '<div class="cover__photo"><img src="' + coverImg + '" alt=""></div>' +
+        '<div class="cover__body">' + coverBody + '</div></header>'
+      : '<header class="cover">' + coverBody + '</header>';
 
     /* 目录 */
     if (years.length > 1) {
@@ -257,6 +274,10 @@ window.BookExport = (function () {
       '.cover__mark{font-size:56px}.cover h1{margin:16px 0 8px;font-size:32px;letter-spacing:2px}' +
       '.cover__sub{font-size:18px;color:#7A6656}.cover__meta{margin-top:14px;font-size:14px;color:#7A6656}' +
       '.cover__date{margin-top:6px;font-size:12px;color:#9A8878}.cover__tip{margin-top:24px;font-size:12px;color:#9A8878}' +
+      '.cover--photo{display:block;min-height:auto;padding:0}' +
+      '.cover__photo{height:56vh;min-height:220px;overflow:hidden;background:#EFE3D4}' +
+      '.cover__photo img{width:100%;height:100%;object-fit:cover;display:block}' +
+      '.cover__body{padding:34px 24px 44px;text-align:center}' +
       'main,.toc,.year,.stats{max-width:760px;margin:0 auto;padding:0 20px}' +
       '.toc{padding-top:36px}.toc h2,.year h2,.stats h2{font-size:20px;border-bottom:1px solid #E0D2C2;padding-bottom:8px;margin:32px 0 16px}' +
       '.toc ul{list-style:none;padding:0;display:flex;flex-wrap:wrap;gap:10px}' +
@@ -301,6 +322,8 @@ window.BookExport = (function () {
       '@media print{body{background:#fff}.no-print{display:none}' +
       '@page{size:A4;margin:14mm}' +
       '.cover{page-break-after:always;min-height:auto;padding:80px 0}' +
+      '.cover--photo{padding:0}' +
+      '.cover__photo{height:78mm;min-height:0}' +
       '.j,.no-break,.wish,.kpis{page-break-inside:avoid}' +
       '.year h2{page-break-after:avoid}' +
       '.j__photos img{height:150px}.photos--1 img{height:220px}}';
