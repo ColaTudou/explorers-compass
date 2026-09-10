@@ -103,9 +103,18 @@ Views.profile = (function () {
       row('settings', '闪电按钮', Store.state.settings.fabEnabled ? '已开启' : '已关闭', 'fab') +
       row('sparkle', '载入演示数据', '重置为一份虚构的示例旅程', 'seed') +
       row('trash', '清空全部数据', '不可恢复，请先导出备份', 'reset') +
+      row('broom', '彻底重置（含缓存）', '数据 + 图片库 + 离线包一起清掉', 'hardreset') +
       '</div>';
 
-    html += '<div class="t-sm t-center">探险家的罗盘 · V3.1 MVP（本地版）<br>' +
+    /* 版本与更新：让用户一眼确认自己跑的是哪一版，并能手动拉最新版 */
+    html += '<div class="setting-row" data-act="update" style="cursor:pointer">' +
+      '<span class="setting-row__ico">' + UI.icon('refresh', 20) + '</span>' +
+      '<div class="grow"><div class="t-body2">版本与更新</div>' +
+      '<div class="t-sm">当前 ' + UI.esc(App.VERSION || 'v1') +
+      (App.BUILT ? ' · ' + UI.esc(App.BUILT) : '') + ' · 点这里检查更新</div></div>' +
+      UI.icon('right', 16) + '</div>';
+
+    html += '<div class="t-sm t-center">探险家的罗盘 · ' + UI.esc(App.VERSION || 'V3.1') + '（本地版）<br>' +
       '数据全部保存在这台设备的浏览器里，不上传任何服务器</div>' +
       '<div style="height:var(--xl)"></div>';
 
@@ -173,6 +182,8 @@ Views.profile = (function () {
             break;
           case 'seed': confirmSeed(); break;
           case 'reset': confirmReset(); break;
+          case 'hardreset': confirmHardReset(); break;
+          case 'update': doCheckUpdate(); break;
           case 'llm': openLLM(); break;
           case 'weather': openWeather(); break;
           case 'notify': openNotify(); break;
@@ -900,16 +911,43 @@ Views.profile = (function () {
       text: '所有旅程、愿望、绑定关系都会被删除，无法恢复。建议先导出备份。',
       okText: '确认清空', danger: true
     }).then(function (ok) {
-      if (!ok) return;
+      if (!ok) { UI.toast('已取消，数据没有变动'); return; }
       Store.reset();
       /* 标记「已经初始化过」——否则下次启动 boot() 看到 users 为空会重新灌演示数据 */
       Store.state.meta.seeded = true;
       Store.save();
-      UI.toast('已清空，来填上你们俩的名字');
+      UI.toast('已清空，来填上你们俩的名字', 'ok');
       location.hash = '#/profile';
       App.render();
       /* 空 App 没法用：立刻引导建立真实的双人绑定 */
       setTimeout(function () { bindWizard(); }, 300);
+    });
+  }
+
+  /* 彻底重置：连浏览器缓存、图片库、离线包一起清掉。
+     用于"明明清了却还是旧数据 / 旧界面"的兜底 —— 那必然是缓存住了旧代码。 */
+  function confirmHardReset() {
+    UI.confirm({
+      title: '彻底重置？',
+      text: '会删除本机全部数据，并清空浏览器缓存与离线包（相当于重装一次 App）。' +
+            '如果你看到的数据和界面一直没变化，用这个最彻底。',
+      okText: '彻底重置', danger: true
+    }).then(function (ok) {
+      if (!ok) return;
+      UI.toast('正在清理…');
+      if (App.hardReset) App.hardReset();
+      else location.reload();
+    });
+  }
+
+  function doCheckUpdate() {
+    if (!App.checkUpdate) { UI.toast('当前是本地文件版，无需更新'); return; }
+    UI.toast('正在检查更新…');
+    App.checkUpdate().then(function (r) {
+      if (r === 'updated') UI.toast('已切换到最新版本', 'ok');
+      else if (r === 'latest') UI.toast('已经是最新版 ' + App.VERSION, 'ok');
+      else if (r === 'none') UI.toast('未启用离线包，刷新即可', 'ok');
+      else UI.toast('检查失败，请确认网络', 'err');
     });
   }
 

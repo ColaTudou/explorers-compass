@@ -4,6 +4,9 @@
    ============================================================ */
 window.App = (function () {
 
+  /* 版本号：改任何 js 都要 +1，用户在「我的 → 版本与更新」能看到 */
+  var VERSION = 'v13';
+  var BUILT = '2026-09-11';
   var TABS = [
     { key: 'home', name: '首页', icon: 'home', hash: '#/home' },
     { key: 'journeys', name: '旅程', icon: 'book', hash: '#/journeys' },
@@ -286,11 +289,41 @@ window.App = (function () {
   /* ---------------- PWA：注册 Service Worker + 捕获安装事件 ---------------- */
   var deferredPrompt = null;
 
+  /* ---------------- PWA / 更新机制 ----------------
+     以前 sw.js 对 js 用「先读缓存」，导致修完 bug 用户手机里还在跑旧代码，
+     表现就是「点了没反应」「数据还是模拟的」。现在：
+       ① sw.js 代码类资源改为网络优先；
+       ② 注册后监听 updatefound，一旦发现新版就提示；
+       ③ 新 SW 接管后自动 reload 一次（用 sessionStorage 防止死循环）。 */
+  var swReg = null;
+
   function initPWA() {
-    if ('serviceWorker' in navigator && /^(https?:)?$/.test(location.protocol) === false) return;
-    if ('serviceWorker' in navigator && location.protocol.indexOf('http') === 0) {
-      navigator.serviceWorker.register('sw.js').catch(function () { /* file:// 或不支持时静默 */ });
-    }
+    if (!('serviceWorker' in navigator)) return;
+    if (location.protocol.indexOf('http') !== 0) return;   // file:// 跳过
+
+    navigator.serviceWorker.register('sw.js').then(function (reg) {
+      swReg = reg;
+      if (!reg) return;
+
+      // 已有等待中的新版本 → 提示
+      if (reg.waiting && navigator.serviceWorker.controller) onNewSW();
+
+      reg.addEventListener('updatefound', function () {
+        var nw = reg.installing;
+        if (!nw) return;
+        nw.addEventListener('statechange', function () {
+          if (nw.state === 'installed' && navigator.serviceWorker.controller) onNewSW();
+        });
+      });
+    }).catch(function () { /* 不支持时静默 */ });
+
+    // 新 SW 接管页面 → 自动刷新一次（每会话只刷一次）
+    navigator.serviceWorker.addEventListener('controllerchange', function () {
+      if (sessionStorage.getItem('sw_reloaded')) return;
+      sessionStorage.setItem('sw_reloaded', '1');
+      location.reload();
+    });
+
     window.addEventListener('beforeinstallprompt', function (e) {
       e.preventDefault();
       deferredPrompt = e;
@@ -300,6 +333,61 @@ window.App = (function () {
       deferredPrompt = null;
       UI.toast('安装成功，可以从桌面打开了 🎉', 'ok');
       App.render();
+    });
+  }
+
+  /* 发现新版本：提示 + 一键更新 */
+  function onNewSW() {
+    App.hasUpdate = true;
+    if (window.UI && UI.toast) UI.toast('发现新版本，正在更新…', 'ok');
+    applyUpdate();
+  }
+
+  /* 让等待中的 SW 立刻接管（会触发 controllerchange → 自动 reload） */
+  function applyUpdate() {
+    if (swReg && swReg.waiting) {
+      swReg.waiting.postMessage('SKIP_WAITING');
+      return true;
+    }
+    return false;
+  }
+
+  /* 手动「检查更新」：先让浏览器去拉 sw.js，有新版就接管刷新 */
+  function checkUpdate() {
+    if (!('serviceWorker' in navigator) || location.protocol.indexOf('http') !== 0) {
+      return Promise.resolve('unsupported');
+    }
+    return navigator.serviceWorker.getRegistration().then(function (reg) {
+      if (!reg) { location.reload(); return 'none'; }
+      swReg = reg;
+      if (reg.waiting) { applyUpdate(); return 'updated'; }
+      return reg.update().then(function () {
+        if (reg.waiting || reg.installing) { applyUpdate(); return 'updated'; }
+        return 'latest';
+      });
+    }).catch(function () { return 'error'; });
+  }
+
+  /* 核弹级清理：清掉本地数据 + 图片库 + 全部分区缓存，并注销 SW，然后硬刷新。
+     用于「怎么清都清不掉」的兜底场景。 */
+  function hardReset() {
+    var jobs = [];
+    try { localStorage.removeItem('explorers_compass_v1'); } catch (e) {}
+    try { localStorage.clear(); } catch (e) {}
+    try { sessionStorage.clear(); } catch (e) {}
+    if (window.IDB && IDB.clear) { try { jobs.push(IDB.clear().catch(function () {})); } catch (e) {} }
+    if (window.caches && caches.keys) {
+      jobs.push(caches.keys().then(function (ks) {
+        return Promise.all(ks.map(function (k) { return caches.delete(k); }));
+      }).catch(function () {}));
+    }
+    if (navigator.serviceWorker && navigator.serviceWorker.getRegistrations) {
+      jobs.push(navigator.serviceWorker.getRegistrations().then(function (rs) {
+        return Promise.all(rs.map(function (r) { return r.unregister(); }));
+      }).catch(function () {}));
+    }
+    return Promise.all(jobs).then(function () {
+      location.replace(location.pathname + '?fresh=' + Date.now());
     });
   }
 
@@ -375,7 +463,9 @@ window.App = (function () {
     canInstall: canInstall, doInstall: doInstall, isStandalone: isStandalone,
     inAppBrowser: inAppBrowser, isWeChat: isWeChat,
     showShortcutHelp: showShortcutHelp,
-    applyTheme: applyTheme, setTheme: setTheme, cycleTheme: cycleTheme, isDark: isDark
+    applyTheme: applyTheme, setTheme: setTheme, cycleTheme: cycleTheme, isDark: isDark,
+    VERSION: VERSION, BUILT: BUILT,
+    checkUpdate: checkUpdate, hardReset: hardReset, applyUpdate: applyUpdate
   };
 })();
 

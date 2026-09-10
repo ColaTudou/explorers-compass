@@ -35,7 +35,9 @@ window.UI = (function () {
     tag: 'M20.6 13.4l-7.2 7.2a2 2 0 0 1-2.8 0L2 12V2h10l8.6 8.6a2 2 0 0 1 0 2.8z|M7 7h.01',
     filter: 'M22 3H2l8 9.46V19l4 2v-8.54L22 3z',
     link: 'M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7|M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7',
-    archive: 'M21 8v13H3V8|M1 3h22v5H1z|M10 12h4'
+    archive: 'M21 8v13H3V8|M1 3h22v5H1z|M10 12h4',
+    refresh: 'M23 4v6h-6|M1 20v-6h6|M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15',
+    broom: 'M19 3l-6 6|M14 9l-8.5 8.5a2 2 0 0 0 3 3L17 12|M9 15l6-6|M4 20l4-4'
   };
 
   function icon(name, size, stroke, color) {

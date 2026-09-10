@@ -35,6 +35,27 @@
   </svg>
 </button>
 
+<script>
+/* ── 版本自愈（内联，不经过任何缓存） ──────────────────────────
+   旧版 Service Worker 会把 js 缓存住，导致修完 bug 用户还在跑旧代码
+   （典型症状：点「清空」没反应、数据还是模拟的）。
+   这里在页面加载时比对构建号：只要变了，就把全部缓存清掉再重载一次。
+   改任何 js 都要把下面的 BUILD 加一位。 */
+(function () {
+  var BUILD = 'v13';
+  try {
+    if (!('caches' in window)) return;
+    if (localStorage.getItem('compass_build') === BUILD) return;
+    caches.keys().then(function (ks) {
+      return Promise.all(ks.map(function (k) { return caches.delete(k); }));
+    }).then(function () {
+      localStorage.setItem('compass_build', BUILD);
+      if (navigator.serviceWorker && navigator.serviceWorker.controller) location.reload();
+    });
+  } catch (e) { }
+})();
+</script>
+
 <script src="js/data.js"></script>
 <script src="js/store.js"></script>
 <script src="js/idb.js"></script>
