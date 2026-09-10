@@ -97,6 +97,29 @@ window.Seed = (function () {
   ];
 
   function build(couple) {
+    /* 占位图：按分类配色 + emoji + 地点，SVG 内嵌 dataURL（<1KB，自动内联不进 IDB）。
+       让演示数据 12 条旅程都有照片，故事书导出来立刻有图可看。 */
+    function cover(cat, loc) {
+      var pal = { '美食': ['#A78B71','#5D4E37'], '探店': ['#3A506B','#1B2845'],
+                  '居家': ['#88A096','#5C7A6E'], '旅行': ['#5F7F67','#34463A'],
+                  '手工': ['#A38AB5','#6B567A'], '演出': ['#D08FA0','#8E5A6D'],
+                  '运动': ['#7A9B7E','#4E6B52'], '其他': ['#8A857C','#5C5853'] };
+      var c = pal[cat] || pal['其他'];
+      var e = (DATA.categoryEmoji && DATA.categoryEmoji[cat]) || '✨';
+      var esc = function (s) { return String(s).replace(/[<>&]/g, function (m) { return ({'<':'&lt;','>':'&gt;','&':'&amp;'})[m]; }); };
+      var svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600">' +
+        '<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">' +
+        '<stop offset="0" stop-color="' + c[0] + '"/><stop offset="1" stop-color="' + c[1] + '"/>' +
+        '</linearGradient></defs>' +
+        '<rect width="800" height="600" fill="url(#g)"/>' +
+        '<circle cx="640" cy="480" r="180" fill="rgba(255,255,255,0.12)"/>' +
+        '<circle cx="180" cy="120" r="80" fill="rgba(255,255,255,0.08)"/>' +
+        '<text x="400" y="320" text-anchor="middle" font-size="160" opacity="0.9">' + e + '</text>' +
+        '<text x="400" y="470" text-anchor="middle" font-size="32" fill="rgba(255,255,255,0.92)" font-family="serif">' + esc(loc) + '</text>' +
+        '</svg>';
+      return 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svg)));
+    }
+
     var ua = couple.user_a_id, ub = couple.user_b_id;
     var list = [];
 
@@ -143,6 +166,11 @@ window.Seed = (function () {
         updated_at: start
       });
       j.title = r.loc;
+      /* 给演示数据加占位图（让故事书有照片可看） */
+      var cov = cover(r.cat, r.loc);
+      j.cover_image = cov;
+      if (j.a_side) j.a_side.images = [cov];
+      if (j.b_side) j.b_side.images = [cov];
       if (i === 1) {
         j.annotations = [{
           id: Store.uid('an'), text: '后来那家书店搬走了，还好当时拍了照。',
@@ -172,6 +200,8 @@ window.Seed = (function () {
       consensus: null,
       created_by: ua, last_visited_at: wStart, created_at: wStart
     });
+    waiting.cover_image = cover('美食', waiting.location_name);
+    if (waiting.a_side) waiting.a_side.images = [waiting.cover_image];
     list.push(waiting);
 
     /* 一条闪电存档草稿（演示半成品展览） */
@@ -193,6 +223,8 @@ window.Seed = (function () {
       consensus: null,
       created_by: ua, last_visited_at: dStart, created_at: dStart
     });
+    draft.cover_image = cover('其他', draft.location_name);
+    if (draft.a_side) draft.a_side.images = [draft.cover_image];
     list.push(draft);
 
     Store.state.journeys = list;
@@ -256,7 +288,7 @@ window.Seed = (function () {
         title: '给一年后的我们',
         content: '今天我们在阳台上种了两盆薄荷。不知道一年后的今天，它们还在不在，我们又去了哪些地方。' +
           '希望那时候，我们还是愿意为一件小事开心一整天。',
-        images: [], author_id: ua,
+        images: [cover('其他', '一年后的话')], author_id: ua,
         unlock_at: new Date(Date.now() + 365 * 86400000).toISOString(),
         created_at: daysAgo(17), opened_at: null, status: 'locked'
       }
