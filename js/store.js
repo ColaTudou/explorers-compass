@@ -183,9 +183,10 @@ window.Store = (function () {
       blacklist: [],
       settings: {
         fabEnabled: true, roleLast: null, theme: 'auto',
-        backup: { remind: true, intervalDays: 7 }
+        backup: { remind: true, intervalDays: 7 },
+        sync: null            // { url, secret } —— 两台设备同步用，见 js/sync.js
       },
-      meta: { lastDoorDate: null, seeded: false, lastBackupAt: null, lastBackupRemindAt: null }
+      meta: { lastDoorDate: null, seeded: false, lastBackupAt: null, lastBackupRemindAt: null, lastSyncAt: null }
     };
   }
 

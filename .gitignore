@@ -7,3 +7,6 @@ Thumbs.db
 
 # 发布版（给 CloudBase 手动上传用，不进仓库）
 发布版/
+
+# 同步服务的本地密文存储（含你们的加密数据，绝不进仓库）
+.sync-store.json

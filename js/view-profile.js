@@ -89,6 +89,10 @@ Views.profile = (function () {
       '</div>';
 
     html += '<div class="card mb-base">' +
+      row('cloud', '数据同步（两台手机）',
+        Sync.ready() ? '已配置 · 点一下就和 TA 合并'
+          : (Sync.supported() ? '未配置 · 点这里连接' : '需要 https 打开'),
+        'sync') +
       row('cloud', '备份与同步', '定期提醒 · 可存到指定文件夹 / 网盘同步目录', 'backup') +
       row('book', '导出成故事书（可打印）', '按时间线排成一本回忆录，能翻能打印', 'book') +
       row('download', '导出全部数据（JSON）', '随时导出一份完整存档', 'export') +
@@ -158,6 +162,7 @@ Views.profile = (function () {
         switch (r.dataset.act) {
               case 'export': doExport(); break;
               case 'import': doImport(); break;
+              case 'sync': openSync(); break;
               case 'backup': openBackup(); break;
               case 'book': openBookExport(); break;
           case 'blacklist': showBlacklist(); break;
@@ -643,6 +648,85 @@ Views.profile = (function () {
       '<div class="grow"><div class="t-body2"><b>' + txt + '了</b>——数据在这台设备里，定期导出到网盘才不怕丢</div></div>' +
       '<button class="btn btn--primary btn--sm" id="btnGoBackup" style="flex:none">去备份</button>' +
       '</div></div>';
+  }
+
+  /* ---------------- 数据同步（两台手机 · 加密信箱） ---------------- */
+  function openSync() {
+    if (!Sync.supported()) {
+      UI.modal({
+        title: '需要 https 打开',
+        body: '<div class="t-2">数据同步要用浏览器的加密能力，只有 <b>https</b> 或 ' +
+          '<b>localhost</b> 打开时才可用。<br><br>用分享链接（https://…）打开这个 App 就能用了。</div>'
+      });
+      return;
+    }
+    var c = Sync.cfg();
+    UI.modal({
+      title: '数据同步',
+      sub: '两台手机各自记录，点一下就把对方的内容合过来',
+      wide: true,
+      body:
+        '<div class="field"><label class="field__label">同步服务地址</label>' +
+        '<input class="input" id="syUrl" placeholder="https://101-33-254-221.sslip.io" value="' + UI.esc(c.url || '') + '">' +
+        '<div class="field__hint">两台设备填同一个地址</div></div>' +
+
+        '<div class="field"><label class="field__label">同步密钥</label>' +
+        '<div class="row" style="gap:8px">' +
+        '<input class="input grow" id="sySecret" placeholder="XXXXXX-XXXXXX-XXXXXX" value="' + UI.esc(c.secret || '') + '">' +
+        '<button class="btn btn--secondary btn--sm" id="syGen" style="flex:none">生成</button>' +
+        '</div>' +
+        '<div class="field__hint">⚠ 两台设备必须填<b>完全一样</b>的密钥 —— 它既是「房间号」也是' +
+        '「加密钥匙」，服务端只存密文、看不到你们的内容。生成一次，把密钥发给 TA 填上即可。' +
+        '</div></div>' +
+
+        '<div id="syOut" class="t-sm"></div>',
+      footer:
+        '<button class="btn btn--secondary" data-act="status">看看 TA 同步了没</button>' +
+        '<button class="btn btn--primary" data-act="sync">立即同步</button>',
+      onMount: function (el, close) {
+        el.querySelector('#syGen').onclick = function () {
+          el.querySelector('#sySecret').value = Sync.genSecret();
+        };
+        var collect = function () {
+          return {
+            url: el.querySelector('#syUrl').value.trim(),
+            secret: el.querySelector('#sySecret').value.trim()
+          };
+        };
+        el.querySelector('[data-act="sync"]').onclick = function () {
+          var v = collect();
+          if (!v.url || !v.secret) { UI.toast('地址和密钥都要填', 'err'); return; }
+          Sync.saveCfg(v);
+          var out = el.querySelector('#syOut');
+          out.innerHTML = '同步中…';
+          Sync.syncNow().then(function (r) {
+            var msg = r.pulled
+              ? '✓ 同步完成：合并了 TA 的内容（新增 ' + (r.stats.added || 0) +
+                ' 段、补全 ' + (r.stats.sidesFilled || 0) + ' 侧）'
+              : '✓ 已上传你的内容；TA 还没同步过，等 TA 点一次同步就能互相看到';
+            out.innerHTML = '<span style="color:var(--success)">' + msg + '</span>';
+            close(); App.render();
+          }).catch(function (e) {
+            out.innerHTML = '<span style="color:var(--danger)">✗ ' + UI.esc(e.message) + '</span>';
+          });
+        };
+        el.querySelector('[data-act="status"]').onclick = function () {
+          var v = collect();
+          if (!v.url || !v.secret) { UI.toast('地址和密钥都要填', 'err'); return; }
+          Sync.saveCfg(v);
+          var out = el.querySelector('#syOut');
+          out.innerHTML = '查询中…';
+          Sync.roomStatus().then(function (r) {
+            if (!r || !r.ok) throw new Error((r && r.error) || '服务返回异常');
+            var mine = Sync.mySide(), theirs = mine === 'a' ? 'b' : 'a';
+            var fmt = function (ts) { return ts ? new Date(ts).toLocaleString('zh-CN') : '还没同步过'; };
+            out.innerHTML = '<div class="t-sm">你这侧：' + fmt(r[mine]) + '<br>TA 那侧：' + fmt(r[theirs]) + '</div>';
+          }).catch(function (e) {
+            out.innerHTML = '<span style="color:var(--danger)">✗ ' + UI.esc(e.message) + '</span>';
+          });
+        };
+      }
+    });
   }
 
   function openBackup() {
