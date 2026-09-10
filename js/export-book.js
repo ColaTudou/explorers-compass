@@ -251,16 +251,132 @@ window.BookExport = (function () {
     return h;
   }
 
+  /* ---------- Markdown 版（贴到公众号 / 笔记软件） ---------- */
+  function buildMarkdown(opts) {
+    opts = opts || {};
+    var withPhotos = opts.photos !== false;
+    var list = collect(opts);
+    var me = Store.me(), pa = Store.partner();
+    var title = (me && pa) ? (me.nickname + ' & ' + pa.nickname) : '我们的';
+    var photoCount = 0, catCount = {};
+    list.forEach(function (j) {
+      photoCount += photosOf(j, withPhotos).length;
+      catCount[j.category || '其他'] = (catCount[j.category || '其他'] || 0) + 1;
+    });
+    var rangeText = opts.range === 'year' ? (new Date().getFullYear() + ' 年')
+      : opts.range === 'archived' ? '已完成的部分' : '全部记录';
+    if (opts.category && opts.category !== 'all') rangeText += ' · 只看「' + opts.category + '」';
+
+    var m = '# 探险家的罗盘 · ' + title + ' 的故事书\n\n';
+    m += '> ' + rangeText + ' · 共 ' + list.length + ' 段记忆' +
+      (withPhotos ? ' · ' + photoCount + ' 张照片' : '') + '\n';
+    m += '> 生成于 ' + cnDate(new Date().toISOString()) + '\n\n---\n\n';
+
+    var years = [];
+    list.forEach(function (j) {
+      var y = new Date(j.start_date).getFullYear();
+      if (years.indexOf(y) < 0) years.push(y);
+    });
+    years.sort();
+
+    years.forEach(function (y) {
+      m += '## ' + y + ' 年\n\n';
+      list.filter(function (j) { return new Date(j.start_date).getFullYear() === y; })
+        .forEach(function (j) {
+          var sc = scoreOf(j);
+          m += '### ' + cnDate(j.start_date) + ' · ' + (j.title || '未命名的一次出门') +
+            (j.is_important ? ' ⭐' : '') + '\n\n';
+          var meta = [];
+          meta.push((DATA.categoryEmoji && DATA.categoryEmoji[j.category] || '') + ' ' + (j.category || ''));
+          if (j.location_name) meta.push('📍 ' + j.location_name);
+          if (sc) meta.push('★ ' + sc);
+          if (j.status !== 'archived' && j.status !== 'sealed') {
+            meta.push(j.status === 'draft' ? '草稿' : '待对方提交');
+          }
+          m += '`' + meta.join(' · ') + '`\n\n';
+
+          if (withPhotos) {
+            photosOf(j, true).forEach(function (p) { m += '![](' + p + ')\n\n'; });
+          }
+
+          [j.a_side, j.b_side].filter(Boolean).forEach(function (s) {
+            var who = nameOf(s.user_id) || 'TA';
+            var role = roleOf(j, s.user_id);
+            m += '> **' + who + (role ? '（' + role + '）' : '') +
+              (s.score ? ' ★' + s.score : '') + '**\n> \n';
+            if (s.text) m += '> ' + String(s.text).replace(/\n/g, '\n> ') + '\n';
+            if (s.senses) {
+              var sn = [];
+              if (s.senses.smell) sn.push('闻起来 ' + s.senses.smell);
+              if (s.senses.sound) sn.push('听起来 ' + s.senses.sound);
+              if (s.senses.temp) sn.push('摸起来 ' + s.senses.temp);
+              if (sn.length) m += '> ' + sn.join(' · ') + '\n';
+            }
+            m += '\n';
+          });
+
+          var tags = DATA.tagNames ? DATA.tagNames((j.consensus && j.consensus.tags) || []) : [];
+          if (tags.length) m += tags.map(function (t) { return '`# ' + t + '`'; }).join(' ') + '\n\n';
+          (j.notes || []).forEach(function (n) {
+            if (!n || !n.content) return;
+            m += '**备注' + (nameOf(n.author_id) ? '（' + nameOf(n.author_id) + '）' : '') + '**：' +
+              String(n.content).replace(/\n/g, ' ') + '\n\n';
+          });
+          (j.annotations || []).forEach(function (a) {
+            if (!a || !a.text) return;
+            m += '**' + cnDate(a.created_at) + ' 追忆' +
+              (nameOf(a.author_id) ? ' · ' + nameOf(a.author_id) : '') + '**：' +
+              String(a.text).replace(/\n/g, ' ') + '\n\n';
+          });
+          m += '---\n\n';
+        });
+    });
+
+    if (!list.length) m += '_这个范围里还没有记录。_\n\n';
+
+    var wishes = (Store.state.wishes || []).slice().sort(function (a, b) {
+      return new Date(a.created_at) - new Date(b.created_at);
+    });
+    if (wishes.length) {
+      var wishDone = wishes.filter(function (w) { return w.is_done; }).length;
+      m += '## 想一起做的事（' + wishDone + ' / ' + wishes.length + ' 已完成）\n\n';
+      wishes.forEach(function (w) {
+        m += '- [' + (w.is_done ? 'x' : ' ') + '] ' + w.title +
+          (w.category ? ' · ' + w.category : '') +
+          (w.is_done && w.completed_at ? ' · 已完成于 ' + cnDate(w.completed_at) : '') +
+          (w.description ? '\n  - ' + w.description : '') + '\n';
+      });
+      m += '\n';
+    }
+
+    var cats = Object.keys(catCount).sort(function (a, b) { return catCount[b] - catCount[a]; });
+    m += '## 我们一起走过的路\n\n';
+    m += '| 段记忆 | 照片 | 重要时光 | 愿望实现 |\n| --- | --- | --- | --- |\n';
+    m += '| ' + list.length + ' | ' + photoCount + ' | ' +
+      list.filter(function (j) { return j.is_important; }).length + ' | ' +
+      wishes.filter(function (w) { return w.is_done; }).length + ' |\n\n';
+    cats.forEach(function (k) {
+      var bar = new Array(Math.max(1, Math.round(catCount[k] / list.length * 20)) + 1).join('▮');
+      m += '- ' + (DATA.categoryEmoji && DATA.categoryEmoji[k] || '') + ' ' + k + ' ' + bar + ' ' + catCount[k] + '\n';
+    });
+    m += '\n> 数据只存在你们自己的设备里，这份文档是给回忆用的。\n';
+    return m;
+  }
+
   function download(opts) {
+    opts = opts || {};
+    var isMd = opts.format === 'md';
     var finish = function () {
-      var html = build(opts);
-      var blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+      var text = isMd ? buildMarkdown(opts) : build(opts);
+      var type = isMd ? 'text/markdown;charset=utf-8' : 'text/html;charset=utf-8';
+      var ext = isMd ? '.md' : '.html';
+      var blob = new Blob([text], { type: type });
       var a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
-      a.download = '探险家的罗盘_故事书_' + Store.fmtYMD(new Date().toISOString()) + '.html';
+      a.download = '探险家的罗盘_故事书_' + Store.fmtYMD(new Date().toISOString()) + ext;
       a.click();
       setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
-      UI.toast('故事书已导出，双击就能看', 'ok');
+      UI.toast(isMd ? 'Markdown 已导出，可直接贴进笔记软件' : '故事书已导出，双击就能看', 'ok');
     };
     if (Store.restoreImages) Store.restoreImages().then(finish, finish);
     else finish();
@@ -329,5 +445,5 @@ window.BookExport = (function () {
       '.j__photos img{height:150px}.photos--1 img{height:220px}}';
   }
 
-  return { build: build, download: download, collect: collect, photosOf: photosOf };
+  return { build: build, buildMarkdown: buildMarkdown, download: download, collect: collect, photosOf: photosOf, autoCover: autoCover };
 })();

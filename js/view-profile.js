@@ -509,6 +509,10 @@ Views.profile = (function () {
       sub: '把记录按时间线排成一本回忆录：双击就能翻，打印即可存成 PDF',
       fields: [
         {
+          key: 'format', label: '格式', type: 'select', value: 'HTML（可翻阅 / 打印）',
+          options: ['HTML（可翻阅 / 打印）', 'Markdown（贴到笔记 / 公众号）']
+        },
+        {
           key: 'range', label: '范围', type: 'select', value: '全部',
           options: ['全部', '今年', '仅已完成的（已归档）']
         },
@@ -538,6 +542,7 @@ Views.profile = (function () {
         range: range,
         category: (v.category && v.category !== '全部') ? v.category : 'all',
         cover: coverMode,
+        format: v.format === 'Markdown（贴到笔记 / 公众号）' ? 'md' : 'html',
         photos: v.photos !== '不要照片（纯文字，文件小很多）'
       };
       if (coverMode !== 'pick') { BookExport.download(opts); return; }
