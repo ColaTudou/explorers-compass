@@ -7,6 +7,9 @@
    ============================================================ */
 window.Sync = (function () {
 
+  /* 内置同步服务器（加密信箱：只存密文，看不到内容）。用户不用手填地址。 */
+  var DEFAULT_URL = 'https://compass-sync.flashhub.net:8443';
+
   function cfg() {
     return (Store.state.settings && Store.state.settings.sync) || {};
   }
@@ -20,6 +23,46 @@ window.Sync = (function () {
   }
   function supported() {
     return !!(window.crypto && crypto.subtle && window.TextEncoder);
+  }
+
+  /* ================= 一键配对 =================
+     把同步密钥塞进一条链接：对方点开（或扫码）就自动完成配对。
+     链接形如 https://.../explorers-compass/?pair=XXXXXX-XXXXXX-XXXXXX
+     服务器只存密文，链接本身走微信/短信发给你信任的人，风险可控。 */
+
+  function pairLink(secret) {
+    var key = secret || cfg().secret || genSecret();
+    var hasLoc = typeof location !== 'undefined';
+    var origin = hasLoc ? (location.origin || '') : '';
+    var path = hasLoc ? (location.pathname || '/') : '/';
+    if (origin.indexOf('http') !== 0) return key;      // file:// 打开时给不出链接，退回裸密钥
+    return origin + path + '?pair=' + encodeURIComponent(key);
+  }
+
+  /* 启动时调用：地址栏带 ?pair= 就自动配置，并把参数抹掉（别让密钥留在历史记录里） */
+  function applyPairFromUrl() {
+    var m = /[?&]pair=([^&]+)/.exec(location.search || '');
+    if (!m) return null;
+    var key = decodeURIComponent(m[1]);
+    saveCfg({ url: cfg().url || DEFAULT_URL, secret: key, pairedAt: new Date().toISOString() });
+    try {
+      history.replaceState({}, '', (location.pathname || '/') + (location.hash || ''));
+    } catch (e) { }
+    return key;
+  }
+
+  /* 手动粘贴密钥也能配对（对方没法点链接时的退路） */
+  function pairBySecret(key) {
+    key = String(key || '').trim();
+    if (!key) return false;
+    saveCfg({ url: cfg().url || DEFAULT_URL, secret: key, pairedAt: new Date().toISOString() });
+    return true;
+  }
+
+  /* 自动同步：静默执行，失败不打扰（外部服务铁律） */
+  function autoSync() {
+    if (!ready()) return Promise.resolve(null);
+    return syncNow().then(function (r) { return r; }, function () { return null; });
   }
 
   /* ---------- base64（Uint8Array ↔ 字符串） ---------- */
@@ -92,6 +135,8 @@ window.Sync = (function () {
       wishes: s.wishes,
       todos: s.todos,
       capsules: s.capsules,
+      diaries: s.diaries || [],   // 个人日常：跨设备带着走，但显示时只按本人过滤
+      quests: s.quests || [],
       blacklist: s.blacklist
     };
   }
@@ -157,6 +202,9 @@ window.Sync = (function () {
 
   return {
     cfg: cfg, saveCfg: saveCfg, ready: ready, supported: supported,
-    mySide: mySide, syncNow: syncNow, roomStatus: roomStatus, genSecret: genSecret
+    mySide: mySide, syncNow: syncNow, roomStatus: roomStatus, genSecret: genSecret,
+    DEFAULT_URL: DEFAULT_URL,
+    pairLink: pairLink, applyPairFromUrl: applyPairFromUrl, pairBySecret: pairBySecret,
+    autoSync: autoSync
   };
 })();

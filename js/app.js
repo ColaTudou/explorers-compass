@@ -5,8 +5,8 @@
 window.App = (function () {
 
   /* 版本号：改任何 js 都要 +1，用户在「我的 → 版本与更新」能看到 */
-  var VERSION = 'v13';
-  var BUILT = '2026-09-11';
+  var VERSION = 'v14';
+  var BUILT = '2026-09-12';
   var TABS = [
     { key: 'home', name: '首页', icon: 'home', hash: '#/home' },
     { key: 'journeys', name: '旅程', icon: 'book', hash: '#/journeys' },
@@ -20,7 +20,7 @@ window.App = (function () {
     wishes: '愿望清单', profile: '我的', record: '记录中', merge: '合并确认',
     archaeology: '考古复苏', awaken: '陪聊唤醒',
     starlight: '星光集', todos: '待办', capsule: '时光胶囊', report: '年度报告',
-    quest: '任务冒险'
+    quest: '任务冒险', diary: '我的日常'
   };
 
   function parse() {
@@ -107,6 +107,7 @@ window.App = (function () {
       case 'capsule': body = Views.capsule.render(); break;
       case 'report': body = Views.report.render(); break;
       case 'quest': body = Views.quest.render(r.id); break;
+      case 'diary': body = Views.diary.render(); break;
       default: body = '<div class="empty">页面不见了</div>';
     }
 
@@ -143,6 +144,7 @@ window.App = (function () {
       case 'capsule': Views.capsule.mount(main); break;
       case 'report': Views.report.mount(main); break;
       case 'quest': Views.quest.mount(main, r.id); break;
+      case 'diary': Views.diary.mount(main); break;
     }
 
     var sf = document.getElementById('sideFlash');
@@ -199,6 +201,12 @@ window.App = (function () {
   function boot() {
     Store.load();
 
+    /* ① 配对链接：对方点开 /?pair=xxx 就自动完成配对（密钥随即从地址栏抹掉） */
+    var pairedKey = null;
+    if (window.Sync && Sync.supported && Sync.supported()) {
+      try { pairedKey = Sync.applyPairFromUrl(); } catch (e) { }
+    }
+
     /* 只有「全新安装」才灌演示数据。
        ⚠ 必须同时看 meta.seeded：用户点过「清空全部数据」后 users 也是空的，
        但那时不能再灌 —— 否则会出现「清空了、刷新又回来了」的假象。 */
@@ -241,6 +249,25 @@ window.App = (function () {
       render();
       initPWA();
       initShortcuts();
+
+      /* ② 配对成功提示 —— 让"虚拟的双人"变成真连上的两个人 */
+      if (pairedKey) {
+        UI.toast('配对成功，两台设备连上了 🎉', 'ok');
+        if (!Store.isBonded || !Store.isBonded()) {
+          setTimeout(function () { if (Views.profile && Views.profile.bindWizard) Views.profile.bindWizard(); }, 600);
+        }
+      }
+
+      /* ③ 已配对就后台自动同步一次：成功有更新才提示，失败完全静默 */
+      if (window.Sync && Sync.ready && Sync.ready()) {
+        Sync.autoSync().then(function (r) {
+          if (r && r.pulled) {
+            UI.toast('已同步到对方的新内容', 'ok');
+            render();
+          }
+        });
+      }
+
       if (window.IDB && Store.trimNow) Store.trimNow();
       if (Notify.granted() && Notify.settings().enabled !== false) Notify.start();
       if (!Store.isStorageOK()) {

@@ -68,6 +68,7 @@ Views.profile = (function () {
       more('💊', '时光胶囊', (Store.state.capsules || []).length + ' 颗', 'capsule') +
       more('📊', '年度报告', '看看这一年', 'report') +
       more('🎯', '任务冒险', '派任务 · 打卡 · 存档', 'quest') +
+      more('📔', '我的日常', (Store.diariesOf ? Store.diariesOf().length : 0) + ' 条 · 只自己可见', 'diary') +
       '</div>';
 
     /* 设置项：外部服务 */
@@ -90,10 +91,7 @@ Views.profile = (function () {
       '</div>';
 
     html += '<div class="card mb-base">' +
-      row('cloud', '数据同步（两台手机）',
-        Sync.ready() ? '已配置 · 点一下就和 TA 合并'
-          : (Sync.supported() ? '未配置 · 点这里连接' : '需要 https 打开'),
-        'sync') +
+      row('link', '配对与同步（两台手机）', syncLabel(), 'sync') +
       row('cloud', '备份与同步', '定期提醒 · 可存到指定文件夹 / 网盘同步目录', 'backup') +
       row('book', '导出成故事书（可打印）', '按时间线排成一本回忆录，能翻能打印', 'book') +
       row('download', '导出全部数据（JSON）', '随时导出一份完整存档', 'export') +
@@ -127,6 +125,13 @@ Views.profile = (function () {
       '<span class="quick__ico" style="font-size:22px">' + ico + '</span>' +
       '<span>' + label + '</span>' +
       '<span class="t-sm" style="color:var(--text-3)">' + UI.esc(sub) + '</span></button>';
+  }
+
+  function syncLabel() {
+    if (!Sync.supported()) return '需要 https 打开';
+    if (!Sync.ready()) return '未配对 · 点这里生成邀请';
+    var t = Store.state.meta && Store.state.meta.lastSyncAt;
+    return t ? '已配对 · 上次同步 ' + UI.dateCN(t) : '已配对 · 点这里同步';
   }
 
   function themeLabel() {
@@ -193,6 +198,7 @@ Views.profile = (function () {
           case 'capsule': location.hash = '#/capsule'; break;
           case 'report': location.hash = '#/report'; break;
           case 'quest': location.hash = '#/quest'; break;
+          case 'diary': location.hash = '#/diary'; break;
           case 'theme': App.cycleTheme(); UI.toast('外观：' + themeLabel()); App.render(); break;
         }
       };
@@ -676,47 +682,107 @@ Views.profile = (function () {
     if (!Sync.supported()) {
       UI.modal({
         title: '需要 https 打开',
-        body: '<div class="t-2">数据同步要用浏览器的加密能力，只有 <b>https</b> 或 ' +
+        body: '<div class="t-2">配对和同步要用浏览器的加密能力，只有 <b>https</b> 或 ' +
           '<b>localhost</b> 打开时才可用。<br><br>用分享链接（https://…）打开这个 App 就能用了。</div>'
       });
       return;
     }
+
+    /* 没有密钥就先生成一个：它既是房间号也是加密钥匙，生成一次两边就对上了 */
     var c = Sync.cfg();
+    if (!c.secret) {
+      Sync.saveCfg({ url: c.url || Sync.DEFAULT_URL, secret: Sync.genSecret() });
+      c = Sync.cfg();
+    }
+    var link = Sync.pairLink(c.secret);
+    var lastAt = Store.state.meta && Store.state.meta.lastSyncAt;
+
     UI.modal({
-      title: '数据同步',
-      sub: '两台手机各自记录，点一下就把对方的内容合过来',
+      title: '邀请对方配对',
+      sub: '让这台设备和 TA 的手机真正连上',
       wide: true,
       body:
-        '<div class="field"><label class="field__label">同步服务地址</label>' +
-        '<input class="input" id="syUrl" placeholder="https://compass-sync.flashhub.net:8443" value="' + UI.esc(c.url || '') + '">' +
-        '<div class="field__hint">两台设备填同一个地址</div></div>' +
+        '<div class="t-body2 mb-md">把这个<b>二维码</b>或<b>链接</b>发给 TA（微信、短信都行）。' +
+        'TA 打开就自动完成配对，之后两边点「立即同步」就能互相看到对方的记录。</div>' +
 
-        '<div class="field"><label class="field__label">同步密钥</label>' +
-        '<div class="row" style="gap:8px">' +
-        '<input class="input grow" id="sySecret" placeholder="XXXXXX-XXXXXX-XXXXXX" value="' + UI.esc(c.secret || '') + '">' +
-        '<button class="btn btn--secondary btn--sm" id="syGen" style="flex:none">生成</button>' +
+        '<div class="t-center mb-md" id="syQr"></div>' +
+
+        '<div class="row mb-sm" style="gap:8px">' +
+        '<input class="input grow" id="syLink" readonly value="' + UI.esc(link) + '">' +
+        '<button class="btn btn--secondary btn--sm" id="syCopy" style="flex:none">复制</button>' +
         '</div>' +
-        '<div class="field__hint">⚠ 两台设备必须填<b>完全一样</b>的密钥 —— 它既是「房间号」也是' +
-        '「加密钥匙」，服务端只存密文、看不到你们的内容。生成一次，把密钥发给 TA 填上即可。' +
-        '</div></div>' +
 
-        '<div id="syOut" class="t-sm"></div>',
+        '<div class="t-cap mb-md">🔒 服务器只是一个加密信箱：只存密文，看不到你们的任何内容。' +
+        '链接里带着钥匙，别发到公开地方。</div>' +
+
+        '<div class="row row--between mb-sm"><span class="t-body2">上次同步</span>' +
+        '<span class="t-sm">' + (lastAt ? UI.dateCN(lastAt) + ' ' +
+          new Date(lastAt).toTimeString().slice(0, 5) : '还没同步过') + '</span></div>' +
+
+        '<div id="syOut" class="t-sm"></div>' +
+
+        '<div class="field mt-md"><label class="field__label">同步密钥（对方没法点链接时，念给 TA 填）</label>' +
+        '<div class="row" style="gap:8px">' +
+        '<input class="input grow" id="sySecret" value="' + UI.esc(c.secret || '') + '">' +
+        '<button class="btn btn--secondary btn--sm" id="syGen" style="flex:none">换一个</button>' +
+        '</div>' +
+        '<div class="field__hint">两台设备必须<b>完全一样</b>。换了密钥等于换房间，需要重新发给 TA。</div></div>' +
+
+        '<div class="field"><label class="field__label">同步服务地址（一般不用改）</label>' +
+        '<input class="input" id="syUrl" value="' + UI.esc(c.url || Sync.DEFAULT_URL) + '"></div>',
+
       footer:
         '<button class="btn btn--secondary" data-act="status">看看 TA 同步了没</button>' +
         '<button class="btn btn--primary" data-act="sync">立即同步</button>',
       onMount: function (el, close) {
-        el.querySelector('#syGen').onclick = function () {
-          el.querySelector('#sySecret').value = Sync.genSecret();
+        var qrBox = el.querySelector('#syQr');
+        if (qrBox) {
+          if (window.QR && QR.svg) {
+            qrBox.innerHTML = QR.svg(link, 220) +
+              '<div class="t-cap mt-sm">让 TA 扫这个码</div>';
+          } else {
+            qrBox.innerHTML = '<div class="t-cap">二维码组件没加载，把下面的链接发给 TA 也一样</div>';
+          }
+        }
+
+        el.querySelector('#syCopy').onclick = function () {
+          var inp = el.querySelector('#syLink');
+          var txt = inp.value;
+          var okCopy = function () { UI.toast('链接已复制，发给 TA 吧', 'ok'); };
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(txt).then(okCopy, function () { fallback(); });
+          } else fallback();
+          function fallback() {
+            inp.select();
+            try { document.execCommand('copy'); okCopy(); }
+            catch (e) { UI.toast('复制失败，请手动选中链接', 'err'); }
+          }
         };
+
+        var refresh = function () {
+          var s = Sync.cfg();
+          el.querySelector('#sySecret').value = s.secret || '';
+          var l = Sync.pairLink();
+          el.querySelector('#syLink').value = l;
+          if (qrBox && window.QR && QR.svg) {
+            qrBox.innerHTML = QR.svg(l, 220) + '<div class="t-cap mt-sm">让 TA 扫这个码</div>';
+          }
+        };
+        el.querySelector('#syGen').onclick = function () {
+          Sync.saveCfg({ url: el.querySelector('#syUrl').value.trim() || Sync.DEFAULT_URL, secret: Sync.genSecret() });
+          refresh();
+          UI.toast('已换新密钥，记得重新发给 TA');
+        };
+
         var collect = function () {
           return {
-            url: el.querySelector('#syUrl').value.trim(),
+            url: el.querySelector('#syUrl').value.trim() || Sync.DEFAULT_URL,
             secret: el.querySelector('#sySecret').value.trim()
           };
         };
         el.querySelector('[data-act="sync"]').onclick = function () {
           var v = collect();
-          if (!v.url || !v.secret) { UI.toast('地址和密钥都要填', 'err'); return; }
+          if (!v.secret) { UI.toast('还缺同步密钥', 'err'); return; }
           Sync.saveCfg(v);
           var out = el.querySelector('#syOut');
           out.innerHTML = '同步中…';
@@ -728,13 +794,12 @@ Views.profile = (function () {
             out.innerHTML = '<span style="color:var(--success)">' + msg + '</span>';
             close(); App.render();
           }).catch(function (e) {
-            out.innerHTML = '<span style="color:var(--danger)">✗ ' + UI.esc(e.message) + '</span>';
+            out.innerHTML = '<span style="color:var(--danger)">✗ ' + UI.esc(e.message) +
+              '<br>检查一下网络，或确认两台设备用的是同一个密钥</span>';
           });
         };
         el.querySelector('[data-act="status"]').onclick = function () {
-          var v = collect();
-          if (!v.url || !v.secret) { UI.toast('地址和密钥都要填', 'err'); return; }
-          Sync.saveCfg(v);
+          Sync.saveCfg(collect());
           var out = el.querySelector('#syOut');
           out.innerHTML = '查询中…';
           Sync.roomStatus().then(function (r) {

@@ -9,7 +9,7 @@
       只有断网 / 请求失败时才回落到缓存。图片图标仍用 cache-first。
    注意：SW 只在 http://localhost 或 https 下能注册，file:// 直接跳过。
    ============================================================ */
-var CACHE = 'compass-v13';
+var CACHE = 'compass-v14';
 
 var ASSETS = [
   './',
@@ -46,6 +46,8 @@ var ASSETS = [
   './js/view-report.js',
   './js/export-book.js',
   './js/quest.js',
+  './js/qr.js',
+  './js/view-diary.js',
   './js/view-quest.js',
   './js/sync.js',
   './js/ai-awaken.js',

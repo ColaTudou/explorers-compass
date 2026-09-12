@@ -181,6 +181,7 @@ window.Store = (function () {
       todos: [],
       capsules: [],
       quests: [],          // 任务冒险：每一局见 js/quest.js
+      diaries: [],         // 我的日常：个人私密记录，见 js/view-diary.js
       blacklist: [],
       settings: {
         fabEnabled: true, roleLast: null, theme: 'auto',
@@ -339,7 +340,7 @@ window.Store = (function () {
     });
 
     /* ③ 愿望 / 待办 / 胶囊：按 id 取并集 */
-    ['wishes', 'todos', 'capsules', 'quests'].forEach(function (key) {
+    ['wishes', 'todos', 'capsules', 'quests', 'diaries'].forEach(function (key) {
       var seen = {};
       (state[key] || []).forEach(function (x) { if (x && x.id) seen[x.id] = 1; });
       (incoming[key] || []).forEach(function (x) {
@@ -450,6 +451,64 @@ window.Store = (function () {
       updated_at: nowISO()
     };
     if (seed) Object.keys(seed).forEach(function (k) { j[k] = seed[k]; });
+    return j;
+  }
+
+  /* ---------- 我的日常（个人私密记录，见 js/view-diary.js） ----------
+     隐私边界：默认只有本人能看到；愿意时把某一条「分享成旅程」才进入双人叙事。 */
+  function getDiary(id) {
+    return (state.diaries || []).filter(function (d) { return d.id === id; })[0] || null;
+  }
+  function diariesOf(uid) {
+    var id = uid || state.currentUserId;
+    return (state.diaries || []).filter(function (d) { return d && d.user_id === id; });
+  }
+  function addDiary(d) {
+    state.diaries = state.diaries || [];
+    d.id = d.id || uid('dy');
+    d.created_at = d.created_at || nowISO();
+    d.updated_at = d.created_at;
+    if (!d.user_id) d.user_id = state.currentUserId;
+    state.diaries.unshift(d);
+    save();
+    return d;
+  }
+  function updateDiary(id, patch) {
+    var d = getDiary(id);
+    if (!d) return null;
+    Object.keys(patch).forEach(function (k) { d[k] = patch[k]; });
+    d.updated_at = nowISO();
+    save();
+    return d;
+  }
+  function deleteDiary(id) {
+    state.diaries = (state.diaries || []).filter(function (d) { return d.id !== id; });
+    save();
+  }
+
+  /* 分享成旅程：只填自己这一侧，另一侧留给对方 —— 符合双面叙事铁律 */
+  var DIARY_CAT = { '探店': '美食', '游玩': '旅行', '运动': '运动', '工作': '日常', '居家': '日常' };
+  function shareDiary(id) {
+    var d = getDiary(id);
+    if (!d) return null;
+    if (d.shared_journey_id && getJourney(d.shared_journey_id)) return getJourney(d.shared_journey_id);
+    var text = d.text || '';
+    var j = newJourney({
+      title: (d.title || text.slice(0, 18) || '我的日常').replace(/\s+/g, ' '),
+      category: DIARY_CAT[d.category] || '日常',
+      cover_image: (d.images && d.images[0]) || '',
+      location_name: d.place || '',
+      weather: d.weather || '',
+      start_date: d.created_at,
+      end_date: d.created_at,
+      status: 'draft'
+    });
+    var side = sideTemplate(d.user_id);
+    side.text = text;
+    side.images = (d.images || []).slice();
+    j[mySideKey()] = side;
+    addJourney(j);
+    updateDiary(id, { shared_journey_id: j.id });
     return j;
   }
 
@@ -706,6 +765,8 @@ window.Store = (function () {
     deleteJourney: deleteJourney, journeys: journeys, visibleJourneys: visibleJourneys,
     applyBlacklistRule: applyBlacklistRule, addBlacklist: addBlacklist,
     removeBlacklist: removeBlacklist, isBlacklisted: isBlacklisted, tryArchive: tryArchive,
+    addDiary: addDiary, updateDiary: updateDiary, deleteDiary: deleteDiary,
+    diariesOf: diariesOf, getDiary: getDiary, shareDiary: shareDiary,
     addWish: addWish, updateWish: updateWish, deleteWish: deleteWish,
     addTodo: addTodo, updateTodo: updateTodo, deleteTodo: deleteTodo,
     addCapsule: addCapsule, openCapsule: openCapsule, deleteCapsule: deleteCapsule,

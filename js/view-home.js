@@ -45,6 +45,7 @@ Views.home = (function () {
       quick('archive', '考古复苏', 'arch') +
       quick('shuffle', '随机任意门', 'door') +
       quick('star', '愿望清单', 'wish') +
+      quick('book', '我的日常', 'diary') +
       '</div></div>';
 
     /* AI 陪聊唤醒（PRD 4.3） */
@@ -371,6 +372,10 @@ Views.home = (function () {
           case 'arch': Views.archaeology.clear(); location.hash = '#/archaeology'; break;
           case 'door': openDoor(); break;
           case 'wish': location.hash = '#/wishes'; break;
+          case 'diary':
+            location.hash = '#/diary';
+            if (Views.diary && Views.diary.compose) setTimeout(function () { Views.diary.compose(null); }, 80);
+            break;
         }
       };
     });
