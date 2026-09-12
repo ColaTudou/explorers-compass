@@ -367,6 +367,312 @@ window.BookExport = (function () {
     return m;
   }
 
+  /* ============================================================
+     我的日常 · 故事书
+     与旅程故事书同引擎、同视觉，但内容来源是 state.diaries[]。
+     ⚠ 隐私边界：只导出「本人」的记录（Store.diariesOf(uid) 已按人过滤），
+        绝不把对方的私密日常塞进书里。
+     ============================================================ */
+  var D_CAT = { '探店': '🍜', '游玩': '🏞', '趣事': '✨', '心得': '💭', '运动': '🏃', '工作': '💼', '居家': '🏠', '其他': '📌' };
+  var D_MOOD = { '开心': '😄', '平静': '😌', '疲惫': '😪', '低落': '😢', '期待': '🤩', '生气': '😠', '感动': '🥹', '迷茫': '😶' };
+  var WEEK = '日一二三四五六';
+
+  function pad2(n) { return n < 10 ? '0' + n : '' + n; }
+  function ymd(iso) {
+    var d = new Date(iso);
+    if (isNaN(d.getTime())) return '';
+    return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
+  }
+  function hm(iso) {
+    var d = new Date(iso);
+    if (isNaN(d.getTime())) return '';
+    return pad2(d.getHours()) + ':' + pad2(d.getMinutes());
+  }
+  function dayCN(iso) {
+    var d = new Date(iso);
+    if (isNaN(d.getTime())) return '';
+    return (d.getMonth() + 1) + '月' + d.getDate() + '日 · 周' + WEEK.charAt(d.getDay());
+  }
+  function catE(k) { return D_CAT[k] || '📌'; }
+  function moodE(k) { return D_MOOD[k] || ''; }
+
+  /* 只取本人（默认当前身份）的日常 */
+  function collectDiaries(opts) {
+    opts = opts || {};
+    var uid = opts.userId || Store.state.currentUserId;
+    var list = (Store.diariesOf ? Store.diariesOf(uid) : []).filter(Boolean);
+
+    if (opts.ids && opts.ids.length) {
+      list = list.filter(function (d) { return opts.ids.indexOf(d.id) >= 0; });
+    }
+    var now = new Date();
+    if (opts.range === 'year') {
+      var y = now.getFullYear();
+      list = list.filter(function (d) { return new Date(d.created_at).getFullYear() === y; });
+    } else if (opts.range === 'month') {
+      var ym = now.getFullYear() + '-' + pad2(now.getMonth() + 1);
+      list = list.filter(function (d) { return ymd(d.created_at).slice(0, 7) === ym; });
+    } else if (opts.range === 'day') {
+      var day = opts.day || ymd(now.toISOString());
+      list = list.filter(function (d) { return ymd(d.created_at) === day; });
+    }
+    if (opts.category && opts.category !== 'all') {
+      list = list.filter(function (d) { return (d.category || '其他') === opts.category; });
+    }
+    if (opts.mood && opts.mood !== 'all') {
+      list = list.filter(function (d) { return d.mood === opts.mood; });
+    }
+    // 从早到晚，像翻日记本
+    return list.sort(function (a, b) { return new Date(a.created_at) - new Date(b.created_at); });
+  }
+
+  function diaryPhotosOf(d, withPhotos) {
+    if (!withPhotos) return [];
+    var out = [], seen = {};
+    (d.images || []).forEach(function (u) {
+      if (typeof u !== 'string' || u.indexOf('data:') !== 0) return;
+      if (seen[u]) return;
+      seen[u] = 1; out.push(u);
+    });
+    return out.slice(0, 9);
+  }
+
+  function gridCls(n) { return n === 1 ? '1' : n <= 4 ? '2' : '3'; }
+
+  function diaryHTML(d, withPhotos) {
+    var photos = diaryPhotosOf(d, withPhotos);
+    var h = '<article class="j d">';
+    h += '<div class="j__meta">' +
+      '<span class="d__time">🕘 ' + esc(hm(d.created_at)) + '</span>' +
+      '<span>' + esc(catE(d.category)) + ' ' + esc(d.category || '其他') + '</span>' +
+      (d.mood ? '<span>' + esc(moodE(d.mood)) + ' ' + esc(d.mood) + '</span>' : '') +
+      (d.weather ? '<span>🌤 ' + esc(d.weather) + '</span>' : '') +
+      (d.place ? '<span>📍 ' + esc(d.place) + '</span>' : '') +
+      '</div>';
+    if (d.text) h += '<div class="d__text">' + esc(d.text).replace(/\n/g, '<br>') + '</div>';
+    if (photos.length) {
+      h += '<div class="j__photos photos--' + gridCls(photos.length) + '">' +
+        photos.map(function (p) { return '<img src="' + p + '" alt="">'; }).join('') + '</div>';
+    }
+    var tags = d.tags || [];
+    if (tags.length) {
+      h += '<div class="j__tags">' + tags.map(function (t) {
+        return '<span class="tag"># ' + esc(t) + '</span>';
+      }).join('') + '</div>';
+    }
+    if (d.prompt) h += '<div class="d__q">每日一问：' + esc(d.prompt) + '</div>';
+    h += '</article>';
+    return h;
+  }
+
+  /* 按年 → 按天 分组，天与天用日期小标题隔开（同一天多条自然排在一起） */
+  function groupDays(list) {
+    var years = [], byYear = {};
+    list.forEach(function (d) {
+      var y = new Date(d.created_at).getFullYear();
+      if (years.indexOf(y) < 0) { years.push(y); byYear[y] = []; }
+      byYear[y].push(d);
+    });
+    years.sort();
+    return { years: years, byYear: byYear };
+  }
+
+  function dayCounts(list) {
+    var c = {};
+    list.forEach(function (d) { var k = ymd(d.created_at); c[k] = (c[k] || 0) + 1; });
+    return c;
+  }
+
+  function buildDiary(opts) {
+    opts = opts || {};
+    var withPhotos = opts.photos !== false;
+    var list = collectDiaries(opts);
+    var u = Store.userById(opts.userId || Store.state.currentUserId);
+    var who = (u && u.nickname) || '我';
+    var dcount = dayCounts(list);
+    var dayN = Object.keys(dcount).length;
+    var photoCount = 0, catCount = {}, moodCount = {};
+    list.forEach(function (d) {
+      photoCount += diaryPhotosOf(d, withPhotos).length;
+      catCount[d.category || '其他'] = (catCount[d.category || '其他'] || 0) + 1;
+      if (d.mood) moodCount[d.mood] = (moodCount[d.mood] || 0) + 1;
+    });
+
+    var rangeText = opts.range === 'year' ? (new Date().getFullYear() + ' 年')
+      : opts.range === 'month' ? (new Date().getFullYear() + ' 年 ' + (new Date().getMonth() + 1) + ' 月')
+        : opts.range === 'day' ? ('这一天 · ' + esc(opts.day || ''))
+          : '全部记录';
+    if (opts.category && opts.category !== 'all') rangeText += ' · 只看「' + opts.category + '」';
+    if (opts.mood && opts.mood !== 'all') rangeText += ' · 心情「' + opts.mood + '」';
+
+    var h = '<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8">' +
+      '<meta name="viewport" content="width=device-width,initial-scale=1">' +
+      '<title>我的日常 · ' + esc(who) + '</title><style>' + css() + '</style></head><body>';
+
+    var coverImg = opts.coverImage || autoCoverDiary(opts.cover, list);
+    var coverBody = '<div class="cover__mark">📔</div>' +
+      '<h1>我的日常</h1>' +
+      '<div class="cover__sub">' + esc(who) + ' · 一天天记下来的</div>' +
+      '<div class="cover__meta">' + esc(rangeText) + ' · 共 ' + list.length + ' 条 · ' + dayN + ' 天' +
+      (withPhotos ? ' · ' + photoCount + ' 张照片' : '') + '</div>' +
+      '<div class="cover__date">生成于 ' + esc(cnDate(new Date().toISOString())) + '</div>' +
+      '<div class="cover__tip no-print">只属于你的一本册子 · 点右上角「打印」→ 另存为 PDF</div>';
+    h += coverImg
+      ? '<header class="cover cover--photo">' +
+      '<div class="cover__photo"><img src="' + coverImg + '" alt=""></div>' +
+      '<div class="cover__body">' + coverBody + '</div></header>'
+      : '<header class="cover">' + coverBody + '</header>';
+
+    var g = groupDays(list);
+    if (g.years.length > 1) {
+      h += '<nav class="toc no-break"><h2>目录</h2><ul>' +
+        g.years.map(function (y) {
+          return '<li><a href="#dy' + y + '">' + y + ' 年<span>' + g.byYear[y].length + ' 条</span></a></li>';
+        }).join('') + '</ul></nav>';
+    }
+
+    g.years.forEach(function (y) {
+      var ys = g.byYear[y];
+      h += '<section class="year"><h2 id="dy' + y + '">' + y + ' 年</h2>';
+      var lastDay = '';
+      ys.forEach(function (d) {
+        var day = ymd(d.created_at);
+        if (day !== lastDay) {
+          lastDay = day;
+          h += '<h3 class="d__day">' + esc(dayCN(d.created_at)) +
+            '<span class="cnt">' + (dcount[day] || 1) + ' 条</span></h3>';
+        }
+        h += diaryHTML(d, withPhotos);
+      });
+      h += '</section>';
+    });
+
+    if (!list.length) {
+      h += '<section class="empty"><p>这个范围里还没有记录。换个范围试试？</p></section>';
+    }
+
+    /* 尾声：统计 */
+    var cats = Object.keys(catCount).sort(function (a, b) { return catCount[b] - catCount[a]; });
+    var moods = Object.keys(moodCount).sort(function (a, b) { return moodCount[b] - moodCount[a]; });
+    h += '<section class="stats no-break"><h2>这一段日子的样子</h2>' +
+      '<div class="kpis">' +
+      '<div class="kpi"><b>' + list.length + '</b><span>条记录</span></div>' +
+      '<div class="kpi"><b>' + dayN + '</b><span>天</span></div>' +
+      (withPhotos ? '<div class="kpi"><b>' + photoCount + '</b><span>张照片</span></div>' : '') +
+      '<div class="kpi"><b>' + cats.length + '</b><span>种类型</span></div>' +
+      '</div>' +
+      (cats.length ? '<div class="bars">' + cats.map(function (k) {
+        var pct = Math.round(catCount[k] / list.length * 100);
+        return '<div class="bar"><span class="bar__k">' + esc(catE(k)) + ' ' + esc(k) + '</span>' +
+          '<span class="bar__t"><i style="width:' + pct + '%"></i></span>' +
+          '<span class="bar__v">' + catCount[k] + '</span></div>';
+      }).join('') + '</div>' : '') +
+      (moods.length ? '<div class="bars bars--mood">' + moods.map(function (k) {
+        var pct = Math.round(moodCount[k] / list.length * 100);
+        return '<div class="bar"><span class="bar__k">' + esc(moodE(k)) + ' ' + esc(k) + '</span>' +
+          '<span class="bar__t"><i style="width:' + pct + '%"></i></span>' +
+          '<span class="bar__v">' + moodCount[k] + '</span></div>';
+      }).join('') + '</div>' : '') +
+      '<p class="muted">共 ' + list.length + ' 条、记录了 ' + dayN + ' 天。这些只存在你自己的设备里，' +
+      '这一页是给以后的你看的。</p></section>';
+
+    h += '</body></html>';
+    return h;
+  }
+
+  function autoCoverDiary(mode, list) {
+    if (mode !== 'latest' && mode !== 'important') return '';
+    var pool = list.slice().reverse();
+    for (var i = 0; i < pool.length; i++) {
+      var ps = diaryPhotosOf(pool[i], true);
+      if (ps.length) return ps[0];
+    }
+    return '';
+  }
+
+  function buildDiaryMarkdown(opts) {
+    opts = opts || {};
+    var withPhotos = opts.photos !== false;
+    var list = collectDiaries(opts);
+    var u = Store.userById(opts.userId || Store.state.currentUserId);
+    var who = (u && u.nickname) || '我';
+    var dcount = dayCounts(list);
+    var dayN = Object.keys(dcount).length;
+    var photoCount = 0, catCount = {}, moodCount = {};
+    list.forEach(function (d) {
+      photoCount += diaryPhotosOf(d, withPhotos).length;
+      catCount[d.category || '其他'] = (catCount[d.category || '其他'] || 0) + 1;
+      if (d.mood) moodCount[d.mood] = (moodCount[d.mood] || 0) + 1;
+    });
+    var rangeText = opts.range === 'year' ? (new Date().getFullYear() + ' 年')
+      : opts.range === 'month' ? (new Date().getFullYear() + ' 年 ' + (new Date().getMonth() + 1) + ' 月')
+        : opts.range === 'day' ? ('这一天 · ' + (opts.day || '')) : '全部记录';
+
+    var m = '# 📔 我的日常 · ' + who + '\n\n';
+    m += '> ' + rangeText + ' · 共 ' + list.length + ' 条 · ' + dayN + ' 天' +
+      (withPhotos ? ' · ' + photoCount + ' 张照片' : '') + '\n';
+    m += '> 生成于 ' + cnDate(new Date().toISOString()) + '\n\n---\n\n';
+
+    var g = groupDays(list);
+    g.years.forEach(function (y) {
+      m += '## ' + y + ' 年\n\n';
+      var lastDay = '';
+      g.byYear[y].forEach(function (d) {
+        var day = ymd(d.created_at);
+        if (day !== lastDay) {
+          lastDay = day;
+          m += '### ' + dayCN(d.created_at) + '（' + (dcount[day] || 1) + ' 条）\n\n';
+        }
+        var meta = [catE(d.category) + ' ' + (d.category || '其他')];
+        if (d.mood) meta.push(moodE(d.mood) + ' ' + d.mood);
+        if (d.weather) meta.push('🌤 ' + d.weather);
+        if (d.place) meta.push('📍 ' + d.place);
+        m += '#### ' + hm(d.created_at) + '\n\n`' + meta.join(' · ') + '`\n\n';
+        if (withPhotos) diaryPhotosOf(d, true).forEach(function (p) { m += '![](' + p + ')\n\n'; });
+        if (d.text) m += String(d.text).replace(/\n/g, '\n') + '\n\n';
+        if ((d.tags || []).length) m += d.tags.map(function (t) { return '`# ' + t + '`'; }).join(' ') + '\n\n';
+        if (d.prompt) m += '> 每日一问：' + d.prompt + '\n\n';
+        m += '---\n\n';
+      });
+    });
+    if (!list.length) m += '_这个范围里还没有记录。_\n\n';
+
+    var cats = Object.keys(catCount).sort(function (a, b) { return catCount[b] - catCount[a]; });
+    var moods = Object.keys(moodCount).sort(function (a, b) { return moodCount[b] - moodCount[a]; });
+    m += '## 这一段日子的样子\n\n';
+    m += '| 条记录 | 天数 | 照片 | 类型 |\n| --- | --- | --- | --- |\n';
+    m += '| ' + list.length + ' | ' + dayN + ' | ' + photoCount + ' | ' + cats.length + ' |\n\n';
+    cats.forEach(function (k) {
+      var bar = new Array(Math.max(1, Math.round(catCount[k] / list.length * 20)) + 1).join('▮');
+      m += '- ' + catE(k) + ' ' + k + ' ' + bar + ' ' + catCount[k] + '\n';
+    });
+    if (moods.length) {
+      m += '\n**心情**\n\n';
+      moods.forEach(function (k) { m += '- ' + moodE(k) + ' ' + k + ' × ' + moodCount[k] + '\n'; });
+    }
+    m += '\n> 只存在你自己的设备里，这份文档是给以后的你看的。\n';
+    return m;
+  }
+
+  function downloadDiary(opts) {
+    opts = opts || {};
+    var isMd = opts.format === 'md';
+    var finish = function () {
+      var text = isMd ? buildDiaryMarkdown(opts) : buildDiary(opts);
+      var type = isMd ? 'text/markdown;charset=utf-8' : 'text/html;charset=utf-8';
+      var ext = isMd ? '.md' : '.html';
+      var blob = new Blob([text], { type: type });
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = '我的日常_' + Store.fmtYMD(new Date().toISOString()) + ext;
+      a.click();
+      setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
+      UI.toast(isMd ? 'Markdown 已导出' : '日常故事书已导出，双击就能翻', 'ok');
+    };
+    if (Store.restoreImages) Store.restoreImages().then(finish, finish);
+    else finish();
+  }
+
   function download(opts) {
     opts = opts || {};
     var isMd = opts.format === 'md';
@@ -446,8 +752,24 @@ window.BookExport = (function () {
       '.cover__photo{height:78mm;min-height:0}' +
       '.j,.no-break,.wish,.kpis{page-break-inside:avoid}' +
       '.year h2{page-break-after:avoid}' +
-      '.j__photos img{height:150px}.photos--1 img{height:220px}}';
+      '.j__photos img{height:150px}.photos--1 img{height:220px}}' +
+
+      /* ---- 我的日常 ---- */
+      '.d__day{font-size:15px;color:#5A4636;margin:24px 0 10px;display:flex;align-items:center;gap:8px;font-weight:600}' +
+      '.d__day .cnt{font-size:12px;font-weight:400;color:#9A8878;background:#F3DFCF;border-radius:10px;padding:1px 8px}' +
+      '.d__day:after{content:"";flex:1;height:1px;background:#E0D2C2}' +
+      '.d__time{font-weight:600;color:#D9822B}' +
+      '.d__text{font-size:14px;margin-top:8px;line-height:1.8}' +
+      '.d__q{margin-top:10px;font-size:12px;color:#9A8878;border-top:1px dashed #E8D3B8;padding-top:8px}' +
+      '.bars--mood .bar__t i{background:#8B6FBF}' +
+      '@media print{.d__day{page-break-after:avoid}.d{page-break-inside:avoid}}';
   }
 
-  return { build: build, buildMarkdown: buildMarkdown, download: download, collect: collect, photosOf: photosOf, autoCover: autoCover };
+  return {
+    build: build, buildMarkdown: buildMarkdown, download: download,
+    collect: collect, photosOf: photosOf, autoCover: autoCover,
+    collectDiaries: collectDiaries, buildDiary: buildDiary,
+    buildDiaryMarkdown: buildDiaryMarkdown, downloadDiary: downloadDiary,
+    diaryPhotosOf: diaryPhotosOf
+  };
 })();

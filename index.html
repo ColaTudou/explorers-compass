@@ -42,7 +42,7 @@
    这里在页面加载时比对构建号：只要变了，就把全部缓存清掉再重载一次。
    改任何 js 都要把下面的 BUILD 加一位。 */
 (function () {
-  var BUILD = 'v14';
+  var BUILD = 'v15';
   try {
     if (!('caches' in window)) return;
     if (localStorage.getItem('compass_build') === BUILD) return;

@@ -5,7 +5,7 @@
 window.App = (function () {
 
   /* 版本号：改任何 js 都要 +1，用户在「我的 → 版本与更新」能看到 */
-  var VERSION = 'v14';
+  var VERSION = 'v15';
   var BUILT = '2026-09-12';
   var TABS = [
     { key: 'home', name: '首页', icon: 'home', hash: '#/home' },

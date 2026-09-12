@@ -72,6 +72,17 @@ Views.diary = (function () {
     for (var i = 0; i < CATS.length; i++) if (CATS[i].k === k) return CATS[i].e;
     return '📌';
   }
+  /* 把「2026-09-08」+ 某个时刻 → ISO 字符串（保留时分秒，排序与显示都自然） */
+  function dateToISO(dateStr, timeFrom) {
+    var p = String(dateStr || '').split('-');
+    if (p.length !== 3) return '';
+    var t = timeFrom ? new Date(timeFrom) : new Date();
+    if (isNaN(t.getTime())) t = new Date();
+    var dt = new Date(Number(p[0]), Number(p[1]) - 1, Number(p[2]),
+      t.getHours(), t.getMinutes(), t.getSeconds());
+    if (isNaN(dt.getTime())) return '';
+    return dt.toISOString();
+  }
 
   /* ---------------- 列表 ---------------- */
   function mine() {
@@ -113,7 +124,10 @@ Views.diary = (function () {
       '<div class="row row--between mb-md">' +
       '<div><h1 class="t-h1">📔 我的日常</h1>' +
       '<div class="t-cap mt-sm">' + all.length + ' 条 · 记录了 ' + dayCount + ' 天 · 只有你看得到</div></div>' +
+      '<div class="row row--tight">' +
+      '<button class="btn btn--secondary btn--sm" id="btnBook">' + UI.icon('book', 16) + ' 故事书</button>' +
       '<button class="btn btn--primary btn--sm" id="btnNew">' + UI.icon('plus', 16) + ' 写一条</button>' +
+      '</div>' +
       '</div>';
 
     /* 搜索 + 筛选 */
@@ -153,13 +167,20 @@ Views.diary = (function () {
       return html + '<div style="height:var(--xxl)"></div>';
     }
 
-    /* 时间线 */
+    /* 时间线：按天分组，同一天可以有很多条 —— 天标题上标出条数，并留一个「再记一条」 */
+    var dayN = {};
+    list.forEach(function (d) { var k = ymd(d.created_at); dayN[k] = (dayN[k] || 0) + 1; });
+
     var lastDay = '';
     html += list.map(function (d) {
       var y = ymd(d.created_at), head = '';
       if (y !== lastDay) {
         lastDay = y;
-        head = '<div class="t-cap mt-base mb-sm" style="font-weight:600">' + dayLabel(d.created_at) + '</div>';
+        head = '<div class="row row--between mt-base mb-sm">' +
+          '<div class="t-cap" style="font-weight:600">' + dayLabel(d.created_at) +
+          ' · ' + dayN[y] + ' 条</div>' +
+          '<button class="btn btn--text btn--mini" data-addday="' + y + '">＋ 再记一条</button>' +
+          '</div>';
       }
       return head + card(d);
     }).join('');
@@ -212,6 +233,16 @@ Views.diary = (function () {
     var bn = root.querySelector('#btnNew'), bn2 = root.querySelector('#btnNew2');
     if (bn) bn.onclick = function () { compose(null); };
     if (bn2) bn2.onclick = function () { compose(null); };
+
+    var bk = root.querySelector('#btnBook');
+    if (bk) bk.onclick = function () { openBook(); };
+
+    root.querySelectorAll('[data-addday]').forEach(function (b) {
+      b.onclick = function (e) {
+        e.stopPropagation();
+        compose(null, b.dataset.addday);
+      };
+    });
 
     var se = root.querySelector('#dySearch');
     if (se) {
@@ -306,10 +337,12 @@ Views.diary = (function () {
     });
   }
 
-  /* ---------------- 写一条 / 编辑 ---------------- */
-  function compose(d) {
+  /* ---------------- 写一条 / 编辑 ----------------
+     compose(日记, 指定日期) —— 传日期是为了「这天再记一条」/补记前几天 */
+  function compose(d, dateStr) {
     editing = d || null;
     draft = {
+      date: d ? ymd(d.created_at) : (dateStr || todayStr()),
       category: (d && d.category) || '趣事',
       mood: (d && d.mood) || '',
       text: (d && d.text) || '',
@@ -322,7 +355,7 @@ Views.diary = (function () {
 
     UI.modal({
       title: d ? '编辑日常' : '写一条日常',
-      sub: '只属于你 · 想分享时再变成旅程',
+      sub: '只属于你 · 一天可以记很多条 · 想分享时再变成旅程',
       body: bodyHTML(),
       footer: '<button class="btn btn--secondary" data-act="no">取消</button>' +
         '<button class="btn btn--primary" data-act="yes">保存</button>',
@@ -356,6 +389,11 @@ Views.diary = (function () {
 
   function bodyHTML() {
     return '<div class="col">' +
+      '<div class="field"><label class="field__label">哪一天</label>' +
+      '<input class="input" type="date" id="dyDate" value="' + UI.esc(draft.date) + '">' +
+      '<div class="field__hint">默认今天；想补记前几天的事也可以改。' +
+      '<b>同一天能记很多条</b>，不用合并成一条。</div></div>' +
+
       '<div class="field"><label class="field__label">分类</label>' +
       '<div class="row row--tight row--wrap" id="dyCats">' +
       CATS.map(function (c) {
@@ -477,9 +515,10 @@ Views.diary = (function () {
     el.querySelector('[data-act="yes"]').onclick = function () {
       draft.text = ta ? ta.value.trim() : '';
       if (!draft.text && !draft.images.length) { UI.toast('写点什么，或至少加张图', 'err'); return; }
-      var tg = el.querySelector('#dyTags'), pl = el.querySelector('#dyPlace');
+      var tg = el.querySelector('#dyTags'), pl = el.querySelector('#dyPlace'), de = el.querySelector('#dyDate');
       draft.tags = String((tg && tg.value) || '').split(/[\s,，、]+/).filter(Boolean).slice(0, 8);
       draft.place = pl ? pl.value.trim() : '';
+      draft.date = (de && de.value) ? de.value : todayStr();
       save();
       close();
     };
@@ -492,15 +531,80 @@ Views.diary = (function () {
       weather: draft.weather, prompt: draft.prompt
     };
     if (editing) {
+      /* 日期被改过 → 同步把 created_at 挪过去（保留原来的时分） */
+      if (draft.date && draft.date !== ymd(editing.created_at)) {
+        var iso = dateToISO(draft.date, editing.created_at);
+        if (iso) data.created_at = iso;
+      }
       Store.updateDiary(editing.id, data);
       UI.toast('已更新', 'ok');
     } else {
       data.user_id = Store.state.currentUserId;
+      if (draft.date && draft.date !== todayStr()) {
+        var iso2 = dateToISO(draft.date);
+        if (iso2) data.created_at = iso2;
+      }
       Store.addDiary(data);
       UI.toast('记下了 📔', 'ok');
     }
     App.render();
   }
 
-  return { render: render, mount: mount, compose: compose, CATS: CATS, MOODS: MOODS, PROMPTS: PROMPTS };
+  /* ---------------- 生成「我的日常」故事书 ---------------- */
+  function openBook() {
+    if (!window.BookExport || !BookExport.downloadDiary) { UI.toast('故事书模块没加载上', 'err'); return; }
+    var total = mine().length;
+    if (!total) { UI.toast('还没有记录，先写一条吧', 'err'); return; }
+    UI.promptSheet({
+      title: '生成日常故事书',
+      sub: '把记下的日常按时间线排成一本只属于你的册子：双击就能翻，打印即存 PDF',
+      fields: [
+        {
+          key: 'format', label: '格式', type: 'select', value: 'HTML（可翻阅 / 打印）',
+          options: ['HTML（可翻阅 / 打印）', 'Markdown（贴到笔记 / 公众号）']
+        },
+        {
+          key: 'range', label: '范围', type: 'select', value: '全部',
+          options: ['全部', '今年', '本月', '只看今天这一天']
+        },
+        {
+          key: 'category', label: '分类', type: 'select', value: '全部',
+          options: ['全部'].concat(CATS.map(function (c) { return c.k; }))
+        },
+        {
+          key: 'mood', label: '心情', type: 'select', value: '全部',
+          options: ['全部'].concat(MOODS.map(function (m) { return m.k; }))
+        },
+        {
+          key: 'cover', label: '封面', type: 'select', value: '经典封面',
+          options: ['经典封面', '用最近的一张照片']
+        },
+        {
+          key: 'photos', label: '照片', type: 'select', value: '含照片',
+          options: ['含照片', '不要照片（纯文字，文件小很多）']
+        }
+      ],
+      okText: '生成故事书'
+    }).then(function (v) {
+      if (!v) return;
+      var range = 'all';
+      if (v.range === '今年') range = 'year';
+      else if (v.range === '本月') range = 'month';
+      else if (v.range === '只看今天这一天') range = 'day';
+      BookExport.downloadDiary({
+        range: range,
+        day: todayStr(),
+        category: v.category !== '全部' ? v.category : 'all',
+        mood: v.mood !== '全部' ? v.mood : 'all',
+        cover: v.cover === '用最近的一张照片' ? 'latest' : 'classic',
+        format: v.format.indexOf('Markdown') === 0 ? 'md' : 'html',
+        photos: v.photos === '含照片'
+      });
+    });
+  }
+
+  return {
+    render: render, mount: mount, compose: compose, openBook: openBook,
+    CATS: CATS, MOODS: MOODS, PROMPTS: PROMPTS
+  };
 })();

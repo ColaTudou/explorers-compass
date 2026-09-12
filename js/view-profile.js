@@ -94,6 +94,7 @@ Views.profile = (function () {
       row('link', '配对与同步（两台手机）', syncLabel(), 'sync') +
       row('cloud', '备份与同步', '定期提醒 · 可存到指定文件夹 / 网盘同步目录', 'backup') +
       row('book', '导出成故事书（可打印）', '按时间线排成一本回忆录，能翻能打印', 'book') +
+      row('book', '我的日常 · 故事书', '把日记排成一本只属于你的册子', 'diarybook') +
       row('download', '导出全部数据（JSON）', '随时导出一份完整存档', 'export') +
       row('upload', '导入数据', '从备份 JSON 恢复 / 换设备互通', 'import') +
       row('eye', '外观主题', themeLabel(), 'theme') +
@@ -180,6 +181,10 @@ Views.profile = (function () {
               case 'sync': openSync(); break;
               case 'backup': openBackup(); break;
               case 'book': openBookExport(); break;
+              case 'diarybook':
+                if (Views.diary && Views.diary.openBook) Views.diary.openBook();
+                else UI.toast('日常模块没加载上', 'err');
+                break;
           case 'blacklist': showBlacklist(); break;
           case 'fab':
             Store.state.settings.fabEnabled = !Store.state.settings.fabEnabled;
